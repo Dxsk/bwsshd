@@ -56,14 +56,16 @@ the generated file. Add a manual `Host` block for those in your own
 
 ## Naming convention
 
-Name your Bitwarden SSH key items with the target host. The first token that
-looks like a hostname or IP is used as the host, and an optional `user@` prefix
-sets the SSH user. All of these map to host `pve1.example.com`:
+Name your Bitwarden SSH key items with the target. The first token shaped like
+`[user@]host[:port]` is used: the first hostname or IP becomes the host, an
+optional `user@` prefix sets the SSH user, and a trailing `:port` sets the port
+(otherwise the SSH default is used). Examples:
 
 - `pve1.example.com`
 - `ssh key ops pve1.example.com`
 - `prod pve1.example.com root`
 - `debian@pve1.example.com` (also sets `User debian`)
+- `debian@pve1.example.com:2222` (also sets `User debian` and `Port 2222`)
 
 Version-like tokens such as `v1.2` are ignored, so they are never mistaken for a
 hostname. Add `[nosshwarden]` anywhere in the name to make sshwarden skip a key

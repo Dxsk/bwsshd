@@ -173,7 +173,7 @@ func generate(keys []*agent.Key, out, keydir, sock string) error {
 			continue
 		}
 
-		host, user := parseTarget(k.Comment)
+		host, user, port := parseTarget(k.Comment)
 
 		if host != "" && seenHost[host] {
 			log.Printf("multiple keys map to host %s; keeping the first, ignoring %q", host, k.Comment)
@@ -205,6 +205,9 @@ func generate(keys []*agent.Key, out, keydir, sock string) error {
 			fmt.Fprintf(&b, "Host %s\n    HostName %s\n", host, host)
 			if user != "" {
 				fmt.Fprintf(&b, "    User %s\n", user)
+			}
+			if port != "" {
+				fmt.Fprintf(&b, "    Port %s\n", port)
 			}
 			fmt.Fprintf(&b, "    IdentityAgent %s\n    IdentityFile %s\n    IdentitiesOnly yes\n\n", sock, pub)
 		} else {
@@ -313,25 +316,45 @@ func skipKey(comment string) bool {
 	return strings.Contains(comment, "[nosshwarden]")
 }
 
-// parseTarget returns the host and optional login user from the first token
-// that looks like "host" or "user@host". "debian@mtmg.example.com" ->
-// ("mtmg.example.com", "debian"); "prod pve1.example.com" ->
-// ("pve1.example.com", ""). Version-like tokens ("v1.2") are ignored: a real
+// parseTarget returns the host plus optional login user and port from the first
+// token shaped like "[user@]host[:port]". "debian@mtmg.example.com:2222" ->
+// ("mtmg.example.com", "debian", "2222"); "prod pve1.example.com" ->
+// ("pve1.example.com", "", ""). Version-like tokens ("v1.2") are ignored: a real
 // domain ends in an alphabetic TLD.
-func parseTarget(comment string) (host, user string) {
+func parseTarget(comment string) (host, user, port string) {
 	for _, f := range strings.Fields(comment) {
 		f = strings.Trim(f, ".")
+		u, hp := "", f
 		if at := strings.LastIndex(f, "@"); at >= 0 {
-			if h := f[at+1:]; looksLikeHost(h) {
-				return h, f[:at]
-			}
-			continue
+			u, hp = f[:at], f[at+1:]
 		}
-		if looksLikeHost(f) {
-			return f, ""
+		h, p := splitHostPort(hp)
+		if looksLikeHost(h) {
+			return h, u, p
 		}
 	}
-	return "", ""
+	return "", "", ""
+}
+
+// splitHostPort separates a trailing numeric ":port" (or "[ipv6]:port") from
+// host, leaving a bare IPv6 literal untouched.
+func splitHostPort(s string) (host, port string) {
+	if h, p, err := net.SplitHostPort(s); err == nil && isDigits(p) {
+		return h, p
+	}
+	return s, ""
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // looksLikeHost accepts an IP literal, or a dotted name whose last label (TLD)
