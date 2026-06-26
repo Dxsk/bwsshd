@@ -1,0 +1,13 @@
+[Unit]
+Description=sshwarden - keep ssh_config in sync with the Bitwarden SSH agent
+After=default.target
+
+[Service]
+ExecStart=%h/.local/bin/sshwarden -watch
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+UMask=0077
+
+[Install]
+WantedBy=default.target
