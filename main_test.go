@@ -7,25 +7,28 @@ import (
 
 func TestParseTarget(t *testing.T) {
 	cases := []struct {
-		in, host, user string
+		in, host, user, port string
 	}{
-		{"pve1.example.com", "pve1.example.com", ""},
-		{"ssh key ops pve1.example.com", "pve1.example.com", ""},
-		{"prod pve1.example.com root", "pve1.example.com", ""},
-		{"debian@mtmg.example.com", "mtmg.example.com", "debian"},
-		{"prod root@pve1.example.com", "pve1.example.com", "root"},
-		{"db admin@10.0.0.5", "10.0.0.5", "admin"}, // IP literal with user
-		{"ansible", "", ""},
-		{"shared key", "", ""},
-		{".hidden", "", ""},                    // dots trimmed, no inner dot
-		{"deploy v1.2 server", "", ""},         // version string, numeric TLD
-		{"backup 1.0.3 build", "", ""},         // version string
-		{"deploy ../../tmp/pwn.com x", "", ""}, // path separators rejected
+		{"pve1.example.com", "pve1.example.com", "", ""},
+		{"ssh key ops pve1.example.com", "pve1.example.com", "", ""},
+		{"prod pve1.example.com root", "pve1.example.com", "", ""},
+		{"debian@mtmg.example.com", "mtmg.example.com", "debian", ""},
+		{"prod root@pve1.example.com", "pve1.example.com", "root", ""},
+		{"db admin@10.0.0.5", "10.0.0.5", "admin", ""},            // IP literal with user
+		{"debian@host.fr:2222", "host.fr", "debian", "2222"},      // user + port
+		{"host.fr:2222", "host.fr", "", "2222"},                   // port only
+		{"ops admin@10.0.0.5:22 prod", "10.0.0.5", "admin", "22"}, // IP + user + port
+		{"ansible", "", "", ""},
+		{"shared key", "", "", ""},
+		{".hidden", "", "", ""},                    // dots trimmed, no inner dot
+		{"deploy v1.2 server", "", "", ""},         // version string, numeric TLD
+		{"backup 1.0.3 build", "", "", ""},         // version string
+		{"deploy ../../tmp/pwn.com x", "", "", ""}, // path separators rejected
 	}
 	for _, c := range cases {
-		host, user := parseTarget(c.in)
-		if host != c.host || user != c.user {
-			t.Errorf("parseTarget(%q) = (%q, %q), want (%q, %q)", c.in, host, user, c.host, c.user)
+		host, user, port := parseTarget(c.in)
+		if host != c.host || user != c.user || port != c.port {
+			t.Errorf("parseTarget(%q) = (%q, %q, %q), want (%q, %q, %q)", c.in, host, user, port, c.host, c.user, c.port)
 		}
 	}
 }
