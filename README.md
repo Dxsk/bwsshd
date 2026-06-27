@@ -15,8 +15,9 @@ tried.
 
 ## Why this exists
 
-The Bitwarden desktop app can act as an SSH agent: your private keys never leave
-the vault and signing happens in the app. The catch is that the agent offers
+The Bitwarden desktop app can act as an
+[SSH agent](https://bitwarden.com/help/ssh-agent/#ssh-agent): your private keys
+never leave the vault and signing happens in the app. The catch is that the agent offers
 every key it holds, in no host-aware order. With many keys and a hardened
 server, SSH hits the auth-attempt limit before reaching the right key and the
 connection fails with `Permission denied (publickey)`.
@@ -145,8 +146,10 @@ Auto-discovery also honors `BW_SSH_SOCK` and `BITWARDEN_SSH_AUTH_SOCK` if set.
 ## Requirements
 
 - Bitwarden desktop app with the SSH agent enabled
-  (`Settings > SSH agent > Enable SSH agent`)
-- SSH key items in your vault, named with their target host
+  (`Settings > SSH agent > Enable SSH agent`) - see
+  [enabling the SSH agent](https://bitwarden.com/help/ssh-agent/#enable-ssh-agent)
+- SSH key items in your vault, named with their target host - see
+  [storing an SSH key](https://bitwarden.com/help/ssh-agent/#storing-an-ssh-key)
 
 ## Support
 
