@@ -1,0 +1,4 @@
+# Normalize line endings to LF in the repo on all platforms. Without this, a
+# Windows checkout (autocrlf) rewrites Go files to CRLF and `gofmt -l` reports
+# them as unformatted, failing CI.
+* text=auto eol=lf
