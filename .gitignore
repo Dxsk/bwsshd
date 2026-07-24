@@ -119,3 +119,6 @@ credentials.json
 
 # Stray root binary from `go build .`
 bwsshd
+
+# Local end-to-end verification scratch dir
+/.e2e/
