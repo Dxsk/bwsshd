@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/github/go-mod/go-version/Dxsk/bwsshd?logo=go&logoColor=white)](go.mod)
-![Platform](https://img.shields.io/badge/platform-Linux-informational)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-informational)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-dxsk-yellow?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/dxsk)
 
 </div>
@@ -46,6 +46,12 @@ self-hosted Vaultwarden.
 
 The SSH agent socket is created by the desktop client, so the backend does not
 change anything.
+
+**Linux and Windows.** On Linux/macOS the agent is a unix socket; on Windows it
+is the named pipe `\\.\pipe\openssh-ssh-agent`, which the Bitwarden desktop app
+registers as the standard OpenSSH agent. bwsshd auto-discovers whichever applies,
+and on Windows writes the generated config with the forward-slash paths and the
+relative `Include` that the built-in OpenSSH client expects.
 
 ## How it works
 
@@ -106,6 +112,9 @@ Add `[nobwsshd]` anywhere in the name to make bwsshd skip a key entirely.
 
 <br>
 
+Grab a prebuilt binary from the [releases](https://github.com/Dxsk/bwsshd/releases)
+(`.tar.gz` for Linux, `.zip` for Windows), or install with Go:
+
 ```sh
 go install github.com/Dxsk/bwsshd@latest
 ```
@@ -116,11 +125,22 @@ Or build from source into `dist/`:
 make build
 ```
 
-On first run, bwsshd adds this line to the top of your `~/.ssh/config`
-automatically (only once), so plain `ssh host` picks up the generated blocks:
+On Windows, run `make build` from **Git Bash** (the Makefile uses a POSIX shell);
+a plain `go build -o dist/bwsshd.exe .` works from any shell too.
+
+On first run, bwsshd adds an `Include` of the generated file to the top of your
+`~/.ssh/config` automatically (only once), so plain `ssh host` picks up the
+generated blocks. On Linux that line is an absolute path:
 
 ```
 Include /home/you/.ssh/config.automatic.bw
+```
+
+On Windows OpenSSH resolves a relative `Include` against `~/.ssh`, so it is
+written relative instead:
+
+```
+Include config.automatic.bw
 ```
 
 </details>
@@ -157,6 +177,32 @@ Follow the logs with:
 journalctl --user -u bwsshd -f
 ```
 
+**Run at login (Windows)**
+
+There is no systemd on Windows, and a classic Windows *service* is the wrong
+tool here: it runs at boot as `LocalSystem` in session 0, where it would see
+neither your per-session Bitwarden agent pipe nor your `~/.ssh`. The correct
+equivalent of the Linux `systemctl --user` service is a **per-user Scheduled
+Task at logon**, which the bundled script sets up for you (no admin needed):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\packaging\windows\install.ps1
+```
+
+It registers a task named `bwsshd` that runs `bwsshd -watch` at logon, in your
+session, **hidden** (no console window), and restarts it if it crashes. Logs go
+to `%LOCALAPPDATA%\bwsshd\bwsshd.log`:
+
+```powershell
+Get-Content -Wait "$env:LOCALAPPDATA\bwsshd\bwsshd.log"
+```
+
+Remove it with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\packaging\windows\uninstall.ps1
+```
+
 The daemon polls the agent and rewrites the config only when the key set
 changes.
 
@@ -172,7 +218,7 @@ generated config and removes its key directory until the app comes back.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-sock` | auto-discover | SSH agent socket; empty means auto-discover native, Flatpak and Snap paths |
+| `-sock` | auto-discover | SSH agent endpoint; empty auto-discovers the Bitwarden socket (native/Flatpak/Snap on Linux) or named pipe (Windows) |
 | `-out` | `~/.ssh/config.automatic.bw` | Generated ssh_config file |
 | `-keydir` | `~/.ssh/bwsshd-keys` | Where public keys are written |
 | `-ssh-config` | `~/.ssh/config` | ssh_config to add the Include line to |
@@ -206,6 +252,8 @@ Auto-discovery also honors `BW_SSH_SOCK` and `BITWARDEN_SSH_AUTH_SOCK` if set.
   [enabling the SSH agent](https://bitwarden.com/help/ssh-agent/#enable-ssh-agent)
 - SSH key items in your vault, named with their target host - see
   [storing an SSH key](https://bitwarden.com/help/ssh-agent/#storing-an-ssh-key)
+- An OpenSSH client. Linux/macOS ship one; on Windows it is the built-in OpenSSH
+  client included with Windows 10/11
 
 </details>
 

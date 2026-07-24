@@ -1,9 +1,8 @@
-package main
+package agent
 
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,7 +171,9 @@ func TestEnsureKeydirGuards(t *testing.T) {
 	}
 
 	link := filepath.Join(t.TempDir(), "link")
-	os.Symlink(t.TempDir(), link)
+	if err := os.Symlink(t.TempDir(), link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err) // Windows without Developer Mode
+	}
 	if err := ensureKeydir(link); err == nil {
 		t.Error("ensureKeydir accepted a symlink")
 	}
@@ -205,7 +206,9 @@ func TestCleanKeydirGuard(t *testing.T) {
 }
 
 // Issue #3 + #5: ensureInclude prepends once, is idempotent, and does not
-// false-match a different file sharing the same basename.
+// false-match a different file sharing the same basename. The exact Include text
+// is platform-specific (absolute on unix, config-relative on Windows), so this
+// asserts behavior via Include counts rather than the literal string.
 func TestEnsureInclude(t *testing.T) {
 	dir := t.TempDir()
 	cfg := filepath.Join(dir, "config")
@@ -225,15 +228,22 @@ func TestEnsureInclude(t *testing.T) {
 		t.Error("ensureInclude not idempotent")
 	}
 
-	// A same-basename Include of a different file must not suppress ours (#5).
+	// A same-basename Include of a different file must not suppress ours (#5):
+	// ours must be added (2 includes), and a re-run must not duplicate it.
 	dir2 := t.TempDir()
 	cfg2 := filepath.Join(dir2, "config")
 	os.WriteFile(cfg2, []byte("Include /somewhere/else/config.automatic.bw\n"), 0600)
 	if err := ensureInclude(cfg2, out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(read(t, cfg2), "Include "+out) {
-		t.Error("ensureInclude false-matched a different file by basename")
+	if n := strings.Count(read(t, cfg2), "Include "); n != 2 {
+		t.Fatalf("want ours added next to the foreign include (2), got %d:\n%s", n, read(t, cfg2))
+	}
+	if err := ensureInclude(cfg2, out); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(read(t, cfg2), "Include "); n != 2 {
+		t.Errorf("ensureInclude not idempotent against a foreign include (got %d)", n)
 	}
 }
 
@@ -246,6 +256,14 @@ func read(t *testing.T, p string) string {
 	return string(b)
 }
 
+// The unix-socket agent harness (serveAgent) and the sync round-trip that uses
+// it live in sync_unix_test.go: they rely on a listening AF_UNIX socket, which
+// is the Bitwarden transport on Linux/macOS. On Windows the transport is a named
+// pipe and is verified end-to-end against the real Bitwarden agent.
+
+// TestCandidateSocks covers the platform-independent precedence: an explicit
+// endpoint wins outright, and an env override comes before the defaults. The
+// platform default tail is asserted in platform_{unix,windows}_test.go.
 func TestCandidateSocks(t *testing.T) {
 	if got := candidateSocks("/explicit", "/home/u"); len(got) != 1 || got[0] != "/explicit" {
 		t.Errorf("explicit sock should win: %v", got)
@@ -255,76 +273,7 @@ func TestCandidateSocks(t *testing.T) {
 	if got[0] != "/env/sock" {
 		t.Errorf("env sock should come first: %v", got)
 	}
-	if got[len(got)-1] != "/home/u/snap/bitwarden/current/.bitwarden-ssh-agent.sock" {
-		t.Errorf("defaults built from home expected: %v", got)
-	}
-}
-
-// serveAgent starts an in-process SSH agent on a unix socket holding one
-// ed25519 key with the given comment, and returns the socket path.
-func serveAgent(t *testing.T, comment string) string {
-	t.Helper()
-	_, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	kr := agent.NewKeyring()
-	if err := kr.Add(agent.AddedKey{PrivateKey: priv, Comment: comment}); err != nil {
-		t.Fatal(err)
-	}
-	sock := filepath.Join(t.TempDir(), "agent.sock")
-	ln, err := net.Listen("unix", sock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { ln.Close() })
-	go func() {
-		for {
-			c, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			go agent.ServeAgent(kr, c)
-		}
-	}()
-	return sock
-}
-
-func TestSyncPresentThenAbsent(t *testing.T) {
-	dir := t.TempDir()
-	out := filepath.Join(dir, "config.bw")
-	keydir := filepath.Join(dir, "keys")
-	sock := serveAgent(t, "debian@host.fr:2222")
-
-	state, err := sync([]string{sock}, out, keydir, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state == stateAbsent {
-		t.Fatal("expected present state")
-	}
-	if !strings.Contains(read(t, out), "Host host.fr") {
-		t.Error("sync did not generate the host block")
-	}
-
-	// Same state -> no-op, returns unchanged.
-	if s, err := sync([]string{sock}, out, keydir, state); err != nil || s != state {
-		t.Errorf("idempotent sync: state=%q err=%v", s, err)
-	}
-
-	// No reachable socket -> clean: keydir removed, config blanked.
-	gone := filepath.Join(dir, "nope.sock")
-	s, err := sync([]string{gone}, out, keydir, state)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s != stateAbsent {
-		t.Errorf("want absent, got %q", s)
-	}
-	if _, err := os.Stat(keydir); !os.IsNotExist(err) {
-		t.Error("clean did not remove keydir on absent agent")
-	}
-	if !strings.Contains(read(t, out), "socket absent") {
-		t.Error("config not blanked on absent agent")
+	if len(got) < 2 {
+		t.Errorf("env sock plus platform defaults expected: %v", got)
 	}
 }
