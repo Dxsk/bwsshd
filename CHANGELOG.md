@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/Dxsk/bwsshd/compare/v0.1.0...v0.2.0) (2026-07-24)
+
+
+### Features
+
+* add Windows support ([f23d8cc](https://github.com/Dxsk/bwsshd/commit/f23d8ccc09eb6a92bbd65af3fdc0f84be08bdbb4))
+* add Windows support ([bb1e997](https://github.com/Dxsk/bwsshd/commit/bb1e997dec41090a8b5963302a921da5509a81a6))
+
 ## 0.1.0 (2026-06-27)
 
 
