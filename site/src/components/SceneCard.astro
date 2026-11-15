@@ -145,6 +145,7 @@ const { scene, step, title, tone = "signal", alt, toggle = false } = Astro.props
     color: var(--text);
     font: 12px var(--font-mono);
     cursor: pointer;
+    min-width: 120px;
   }
   .readout {
     font: 12px var(--font-mono);
@@ -153,9 +154,13 @@ const { scene, step, title, tone = "signal", alt, toggle = false } = Astro.props
   .readout[data-state="absent"] {
     color: var(--muted);
   }
+  /* Fixed to the tallest state (the Host block, wrapped at the narrowest card)
+     so toggling the vault never resizes the card or shifts the page. */
   .config {
+    box-sizing: border-box;
     margin: 4px 0 0;
-    min-height: 7.6em;
+    height: calc(6 * 1.5em + 24px);
+    overflow: hidden;
     padding: 12px 14px;
     border-radius: 8px;
     border: 1px solid var(--hairline);

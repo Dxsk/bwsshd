@@ -13,6 +13,12 @@ The catch is that the agent offers **every** key it holds, in no host-aware orde
 Received disconnect from 203.0.113.10 port 22:2: Too many authentication failures
 ```
 
+## Before you start
+
+- The Bitwarden desktop app with its SSH agent enabled, and on Windows the OpenSSH Authentication Agent service disabled. [Set up the Bitwarden agent](/docs/bitwarden-setup/) walks through it, with links to Bitwarden's own [SSH Agent guide](https://bitwarden.com/help/ssh-agent/).
+- SSH key items in your vault, named after their target host. See the [naming convention](/docs/naming/).
+- An OpenSSH client. Linux and macOS ship one; Windows 10 and 11 include it.
+
 ## What bwsshd does
 
 bwsshd reads the key list from the agent and writes one `Host` block per key, with `IdentitiesOnly yes`, so SSH offers a single, deterministic key per host:
@@ -35,9 +41,3 @@ The private key stays in the vault. The `.pub` file only tells SSH which key to 
 - **Windows**: the OpenSSH named pipe that Bitwarden registers.
 
 The SSH agent socket is created by the desktop app, so the backend does not matter: Bitwarden cloud and a self-hosted Vaultwarden behave the same.
-
-## Requirements
-
-- The Bitwarden desktop app with the SSH agent enabled (*Settings, SSH agent, Enable SSH agent*). See [enabling the SSH agent](https://bitwarden.com/help/ssh-agent/#enable-ssh-agent).
-- SSH key items in your vault, named after their target host. See the [naming convention](/docs/naming/).
-- An OpenSSH client. Linux and macOS ship one; Windows 10 and 11 include it.
