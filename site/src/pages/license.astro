@@ -1,0 +1,69 @@
+---
+import Base from "../layouts/Base.astro";
+import { REPO } from "../site";
+import text from "../../../LICENSE?raw";
+
+// The file is hard-wrapped; join each paragraph back into one line.
+const [title, ...paragraphs] = text
+  .trim()
+  .split(/\n\s*\n/)
+  .map((p) => p.replace(/\s*\n\s*/g, " "));
+---
+
+<Base title="License | bwsshd" description="bwsshd is free software under the MIT License.">
+  <div class="wrap page">
+    <span class="eyebrow">License</span>
+    <h1>{title}</h1>
+    <p class="lead">
+      In short: use it, change it, ship it, sell it. Keep the notice below with any copy, and know that it comes with no
+      warranty.
+    </p>
+    <div class="text">
+      {paragraphs.map((p) => <p>{p}</p>)}
+    </div>
+    <p class="source">
+      Source: <a href={`${REPO}/blob/main/LICENSE`} target="_blank" rel="noopener">LICENSE</a> in the repository.
+    </p>
+  </div>
+</Base>
+
+<style>
+  .page {
+    max-width: 760px;
+    padding-top: 56px;
+    padding-bottom: 96px;
+  }
+  h1 {
+    font-size: clamp(34px, 5vw, 44px);
+    margin: 8px 0 16px;
+  }
+  .lead {
+    margin-bottom: 32px;
+  }
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    color: var(--soft);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .text p:first-child {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text);
+  }
+  .text p:last-child {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .source {
+    margin-top: 20px;
+    font-size: 14px;
+    color: var(--faint);
+  }
+</style>
