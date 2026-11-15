@@ -3,7 +3,7 @@
     Install bwsshd as a per-user background agent on Windows.
 
 .DESCRIPTION
-    Registers a Scheduled Task that runs `bwsshd -watch` at logon, under your own
+    Registers a Scheduled Task that runs `bwsshd --watch` at logon, under your own
     account, in your interactive session. This is the Windows equivalent of the
     Linux `systemctl --user` service: it must run as you (not as a system
     service), because the Bitwarden SSH agent pipe and your ~/.ssh are per-user.
@@ -17,7 +17,7 @@
     omitted.
 
 .PARAMETER Interval
-    Poll interval passed to -watch (default 10s).
+    Poll interval passed to --watch (default 10s).
 
 .PARAMETER TaskName
     Scheduled Task name (default "bwsshd"). Override to test without touching a
@@ -72,10 +72,10 @@ Copy-Item -Path $Bin -Destination $TargetBin -Force
 #    wscript.exe has no console of its own; Run(cmd, 0, True) starts bwsshd with a
 #    hidden window (0) and waits (True) so the task keeps tracking it. Quitting
 #    with bwsshd's exit code lets the task's restart-on-failure kick in.
-$cmd = '"' + $TargetBin + '" -watch -interval ' + $Interval + ' -logfile "' + $LogFile + '"'
-if ($Out) { $cmd += ' -out "' + $Out + '"' }
-if ($Keydir) { $cmd += ' -keydir "' + $Keydir + '"' }
-if ($SshConfig) { $cmd += ' -ssh-config "' + $SshConfig + '"' }
+$cmd = '"' + $TargetBin + '" --watch --interval ' + $Interval + ' --logfile "' + $LogFile + '"'
+if ($Out) { $cmd += ' --out "' + $Out + '"' }
+if ($Keydir) { $cmd += ' --keydir "' + $Keydir + '"' }
+if ($SshConfig) { $cmd += ' --ssh-config "' + $SshConfig + '"' }
 
 $Vbs = Join-Path $InstallDir "bwsshd-launch.vbs"
 $vbsCmd = $cmd -replace '"', '""'   # escape quotes for a VBScript string literal
