@@ -9,7 +9,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2024-orange?logo=rust&logoColor=white)](Cargo.toml)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-dxsk-yellow?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/dxsk)
 
 </div>
 
@@ -63,6 +62,31 @@ bwsshd auto-discovers whichever applies:
 
 On Windows it also writes the generated config with the forward-slash paths and
 the relative `Include` that the built-in OpenSSH client expects.
+
+## Before you start
+
+bwsshd reads the keys served by the Bitwarden desktop SSH agent, so set that up
+first. Bitwarden's [SSH Agent guide](https://bitwarden.com/help/ssh-agent/)
+covers every step; in short:
+
+1. **Enable the agent.** In the Bitwarden desktop app, open *Settings* and turn
+   on *Enable SSH agent*
+   ([Bitwarden docs](https://bitwarden.com/help/ssh-agent/#enable-ssh-agent)).
+2. **On Windows, free the pipe.** Set the *OpenSSH Authentication Agent*
+   service's startup type to *Disabled*, so Bitwarden can serve the standard
+   agent pipe
+   ([Bitwarden docs](https://bitwarden.com/help/ssh-agent/#configure-your-system-to-use-bitwarden-ssh-agent)).
+3. **Add your keys.** Create or import SSH key items, named after their target
+   host (see [Naming convention](#naming-convention) and
+   [creating an SSH key](https://bitwarden.com/help/about-ssh/#create-a-new-ssh-key)).
+
+You also need an OpenSSH client: Linux and macOS ship one, Windows 10 and 11
+include it.
+
+Bitwarden's guide also has you export `SSH_AUTH_SOCK`. bwsshd does not need it
+for the hosts it manages, since every generated block sets `IdentityAgent`
+itself; set it if you want other tools (`git`, `ssh-add`) to use the Bitwarden
+agent too.
 
 ## How it works
 
@@ -294,21 +318,6 @@ still accepted, so existing service files keep working after an upgrade.
 
 </details>
 
-<details>
-<summary><strong>Requirements</strong></summary>
-
-<br>
-
-- Bitwarden desktop app with the SSH agent enabled
-  (`Settings > SSH agent > Enable SSH agent`) - see
-  [enabling the SSH agent](https://bitwarden.com/help/ssh-agent/#enable-ssh-agent)
-- SSH key items in your vault, named with their target host - see
-  [storing an SSH key](https://bitwarden.com/help/ssh-agent/#storing-an-ssh-key)
-- An OpenSSH client. Linux/macOS ship one; on Windows it is the built-in OpenSSH
-  client included with Windows 10/11
-
-</details>
-
 ---
 
 ## Contributing
@@ -335,11 +344,6 @@ automatically once a release PR is merged.
 
 Thanks to [@Andralax](https://github.com/Andralax) for the careful bug reports
 and review that shaped the first releases.
-
-## Support
-
-If this saved you some headaches, you can
-[buy me a coffee](https://buymeacoffee.com/dxsk).
 
 ## License
 

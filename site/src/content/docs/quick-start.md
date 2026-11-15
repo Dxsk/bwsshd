@@ -2,12 +2,12 @@
 title: Quick start
 description: From a fresh install to your first single-key connection.
 section: Getting started
-order: 3
+order: 4
 ---
 
 ## 1. Name a key in Bitwarden
 
-Rename an SSH key item so its name contains the host, for example `debian@pve1.example.com`. The [naming convention](/docs/naming/) has all the forms.
+With the SSH agent enabled in the desktop app (see [Set up the Bitwarden agent](/docs/bitwarden-setup/)), rename an SSH key item so its name contains the host, for example `debian@pve1.example.com`. The [naming convention](/docs/naming/) has all the forms.
 
 ## 2. Run bwsshd once
 

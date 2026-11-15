@@ -4,6 +4,27 @@ import InstallTabs from "../components/InstallTabs.astro";
 import SceneCard from "../components/SceneCard.astro";
 import Naming from "../components/Naming.astro";
 
+const BW_AGENT = "https://bitwarden.com/help/ssh-agent/";
+
+const audiences = [
+  {
+    title: "Homelab and Proxmox admins",
+    text: "Dozens of nodes, containers and VMs, one key each. bwsshd keeps every host block in step with the vault, no hand-edited config.",
+  },
+  {
+    title: "Ops on hardened servers",
+    text: "Security baselines such as the CIS benchmarks cap MaxAuthTries at 4 or less. One pinned key per host means one attempt, not a lockout.",
+  },
+  {
+    title: "Teams sharing keys in Bitwarden",
+    text: "Bitwarden and Vaultwarden organizations can share SSH key items. Everyone gets the same host mapping from the same item names.",
+  },
+  {
+    title: "People on more than one OS",
+    text: "The same tool and the same naming on Linux, macOS and Windows, with the Bitwarden socket or pipe found on its own.",
+  },
+];
+
 const features = [
   {
     title: "One key per host",
@@ -56,6 +77,10 @@ const compare = [
           so SSH offers the right key first, every time. Private keys never touch disk.
         </p>
         <InstallTabs />
+        <p class="prereq">
+          Needs the Bitwarden desktop app with its SSH agent enabled. <a href="#setup">Set it up in three steps</a>, or
+          read <a href={BW_AGENT}>Bitwarden's SSH Agent guide</a>.
+        </p>
         <ul class="facts" aria-label="Platforms">
           <li>Linux</li><li>macOS</li><li>Windows</li><li aria-hidden="true" class="sep">|</li><li>x86_64 + arm64</li><li
             aria-hidden="true"
@@ -104,6 +129,72 @@ bwsshd: wrote ~/.ssh/config.automatic.bw: 12 host(s), 1 key(s) without a hostnam
 <span class="p">$</span> ssh pve1.example.com
 <span class="p">debian@pve1:~$</span></pre>
       </div>
+    </div>
+  </section>
+
+  <section id="who" class="section" aria-labelledby="who-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Who it's for</span>
+        <h2 id="who-title">For people whose SSH keys already live in Bitwarden.</h2>
+      </div>
+      <div class="who">
+        {
+          audiences.map((a) => (
+            <div class="who-card">
+              <h3>{a.title}</h3>
+              <p>{a.text}</p>
+            </div>
+          ))
+        }
+      </div>
+      <p class="not-for">
+        <strong>Probably not for you</strong> if your keys sit in <code class="inline-code">~/.ssh</code> with a handful of
+        hosts, or if you use Bitwarden without the desktop app: the SSH agent only runs there.
+      </p>
+    </div>
+  </section>
+
+  <section id="setup" class="section dots" aria-labelledby="setup-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Setup</span>
+        <h2 id="setup-title">From vault to <code class="inline-code">ssh</code> in three steps.</h2>
+        <p class="lead">
+          The first two happen in Bitwarden and are covered by <a href={BW_AGENT}>Bitwarden's SSH Agent guide</a>;
+          the <a href="/docs/bitwarden-setup/">setup page</a> sums up what bwsshd needs.
+        </p>
+      </div>
+      <ol class="steps">
+        <li>
+          <span class="num">1</span>
+          <h3>Enable the SSH agent</h3>
+          <p>
+            In the Bitwarden desktop app, open <strong>Settings</strong> and turn on <strong>Enable SSH agent</strong>.
+            On Windows, also set the <strong>OpenSSH Authentication Agent</strong> service to Disabled.
+          </p>
+          <a href={`${BW_AGENT}#enable-ssh-agent`}>Bitwarden: Enable SSH Agent</a>
+        </li>
+        <li>
+          <span class="num">2</span>
+          <h3>Add and name your keys</h3>
+          <p>
+            Create or import SSH key items, and name each one after the host it opens, like <code class="inline-code"
+              >debian@pve1.example.com</code
+            >.
+          </p>
+          <a href="https://bitwarden.com/help/about-ssh/#create-a-new-ssh-key">Bitwarden: Create an SSH key</a>
+        </li>
+        <li>
+          <span class="num">3</span>
+          <h3>Install bwsshd</h3>
+          <p>
+            Run the one-liner above. It installs the binary and starts <code class="inline-code">bwsshd --watch</code> at
+            login. Then plain <code class="inline-code">ssh pve1.example.com</code> offers one key.
+          </p>
+          <a href="/docs/install/">All install options</a>
+        </li>
+      </ol>
     </div>
   </section>
 
@@ -329,9 +420,11 @@ bwsshd: wrote ~/.ssh/config.automatic.bw: 12 host(s), 1 key(s) without a hostnam
     margin: 0;
     padding: 20px;
     border-radius: 12px;
-    overflow-x: auto;
     font-size: 13px;
     line-height: 1.8;
+    /* Long log lines wrap instead of scrolling sideways. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
     background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
     background-size: 100% 3px;
   }
@@ -351,6 +444,87 @@ bwsshd: wrote ~/.ssh/config.automatic.bw: 12 host(s), 1 key(s) without a hostnam
   }
   .good .p {
     color: var(--signal);
+  }
+
+  .prereq {
+    max-width: 580px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .who {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  .who-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .who-card h3 {
+    font-size: 19px;
+  }
+  .who-card p {
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .not-for {
+    margin-top: 24px;
+    max-width: 760px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .not-for strong {
+    color: var(--text);
+  }
+
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .steps li {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .steps .num {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--signal-deep);
+    color: var(--signal);
+    font: 600 14px var(--font-mono);
+  }
+  .steps h3 {
+    font-size: 19px;
+  }
+  .steps p {
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .steps p strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .steps a {
+    margin-top: auto;
+    font-size: 14px;
   }
 
   .scenes {

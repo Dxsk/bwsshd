@@ -2,7 +2,7 @@
 title: Install
 description: One-line installers, prebuilt archives, or Cargo.
 section: Getting started
-order: 2
+order: 3
 ---
 
 ## One-line install
