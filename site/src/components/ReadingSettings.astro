@@ -1,0 +1,251 @@
+---
+// Reader controls for the docs: text size, line spacing, column width, letter
+// spacing and a high-legibility font. The state lives in the inline head script
+// (ReadingHead.astro) so it applies before first paint; this is only the UI.
+import "@fontsource/atkinson-hyperlegible/400.css";
+import "@fontsource/atkinson-hyperlegible/700.css";
+
+const groups = [
+  {
+    key: "leading",
+    label: "Line spacing",
+    options: [
+      ["compact", "Compact"],
+      ["normal", "Normal"],
+      ["relaxed", "Relaxed"],
+    ],
+  },
+  {
+    key: "width",
+    label: "Column width",
+    options: [
+      ["narrow", "Narrow"],
+      ["normal", "Normal"],
+      ["wide", "Wide"],
+    ],
+  },
+  {
+    key: "spacing",
+    label: "Letter spacing",
+    options: [
+      ["normal", "Normal"],
+      ["wide", "Wide"],
+    ],
+  },
+  {
+    key: "font",
+    label: "Font",
+    options: [
+      ["inter", "Default"],
+      ["legible", "Hyperlegible"],
+    ],
+  },
+];
+---
+
+<details class="reading" data-reading>
+  <summary>
+    <span class="aa" aria-hidden="true">Aa</span>
+    <span>Reading</span>
+  </summary>
+  <div class="panel">
+    <div class="row">
+      <span class="label" id="rs-size">Text size</span>
+      <div class="stepper" role="group" aria-labelledby="rs-size">
+        <button type="button" data-step="-1" aria-label="Smaller text">A<span aria-hidden="true">−</span></button>
+        <output data-size aria-live="polite">100%</output>
+        <button type="button" data-step="1" aria-label="Larger text">A<span aria-hidden="true">+</span></button>
+      </div>
+    </div>
+    {
+      groups.map((g) => (
+        <div class="row">
+          <span class="label" id={`rs-${g.key}`}>
+            {g.label}
+          </span>
+          <div class="seg" role="group" aria-labelledby={`rs-${g.key}`}>
+            {g.options.map(([value, text]) => (
+              <button type="button" data-key={g.key} data-value={value} aria-pressed="false">
+                {text}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+    <button type="button" class="reset" data-reset>Reset to defaults</button>
+  </div>
+</details>
+
+<script>
+  type Settings = { size: number; [k: string]: string | number };
+  type Reading = {
+    S: { size: number[] };
+    D: Settings;
+    get: () => Settings;
+    set: (n: Partial<Settings>) => Settings;
+    reset: () => Settings;
+  };
+
+  const reading = (window as unknown as { bwsshdReading?: Reading }).bwsshdReading;
+  const root = document.querySelector<HTMLDetailsElement>("[data-reading]");
+
+  if (reading && root) {
+    const sizeOut = root.querySelector<HTMLOutputElement>("[data-size]")!;
+    const steppers = root.querySelectorAll<HTMLButtonElement>("[data-step]");
+
+    const sync = (s: Settings) => {
+      sizeOut.value = `${Math.round((reading.S.size[s.size] / reading.S.size[reading.D.size]) * 100)}%`;
+      steppers.forEach((b) => {
+        const next = s.size + Number(b.dataset.step);
+        b.disabled = next < 0 || next >= reading.S.size.length;
+      });
+      root.querySelectorAll<HTMLButtonElement>("[data-key]").forEach((b) => {
+        b.setAttribute("aria-pressed", String(s[b.dataset.key!] === b.dataset.value));
+      });
+    };
+
+    steppers.forEach((b) =>
+      b.addEventListener("click", () => sync(reading.set({ size: reading.get().size + Number(b.dataset.step) }))),
+    );
+    root.querySelectorAll<HTMLButtonElement>("[data-key]").forEach((b) =>
+      b.addEventListener("click", () => sync(reading.set({ [b.dataset.key!]: b.dataset.value! }))),
+    );
+    root.querySelector("[data-reset]")!.addEventListener("click", () => sync(reading.reset()));
+
+    // Behave like a popover: close on Escape or a click elsewhere.
+    document.addEventListener("click", (e) => {
+      if (root.open && !root.contains(e.target as Node)) root.open = false;
+    });
+    root.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && root.open) {
+        root.open = false;
+        root.querySelector("summary")!.focus();
+      }
+    });
+
+    sync(reading.get());
+  } else if (root) {
+    root.hidden = true;
+  }
+</script>
+
+<style>
+  .reading {
+    position: relative;
+  }
+  summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--raised);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary:hover {
+    border-color: #33405f;
+  }
+  .reading[open] summary {
+    border-color: var(--signal-deep);
+  }
+  .aa {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--signal);
+  }
+  .panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 30;
+    width: min(340px, calc(100vw - 32px));
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .label {
+    font: 11px var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .stepper,
+  .seg {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 9px;
+    border: 1px solid var(--hairline);
+    background: var(--ground);
+  }
+  .stepper button,
+  .seg button {
+    flex: 1 1 0;
+    min-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font: 500 13px var(--font-body);
+    cursor: pointer;
+  }
+  .stepper button {
+    flex: 0 0 52px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+  }
+  .stepper button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .stepper output {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 13px var(--font-mono);
+    color: var(--soft);
+  }
+  .seg button:hover,
+  .stepper button:not(:disabled):hover {
+    color: var(--text);
+    background: var(--surface);
+  }
+  .seg button[aria-pressed="true"] {
+    background: #1e2640;
+    border-color: #2e3756;
+    color: var(--text);
+  }
+  .reset {
+    align-self: flex-start;
+    padding: 4px 0;
+    border: 0;
+    background: none;
+    color: var(--signal);
+    font-size: 13px;
+    cursor: pointer;
+  }
+</style>

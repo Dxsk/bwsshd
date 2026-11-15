@@ -1,0 +1,68 @@
+<!--
+  Applies the saved reading settings before the page paints, so the docs never
+  flash at the default size. It also owns the state for ReadingSettings.astro.
+  Storage can be missing (private windows, blocked site data): every access is
+  guarded and the defaults stand in.
+-->
+<script is:inline>
+  (() => {
+    const S = {
+      size: [14, 16, 18, 20, 22],
+      leading: { compact: "1.5", normal: "1.7", relaxed: "2" },
+      width: { narrow: "620px", normal: "780px", wide: "980px" },
+      spacing: { normal: ["normal", "normal"], wide: ["0.03em", "0.14em"] },
+      font: { inter: "var(--font-body)", legible: '"Atkinson Hyperlegible", var(--font-body)' },
+    };
+    const D = { size: 1, leading: "normal", width: "normal", spacing: "normal", font: "inter" };
+    const KEY = "bwsshd-reading";
+    const style = document.documentElement.style;
+
+    const valid = (s) => {
+      const out = { ...D };
+      for (const k of Object.keys(D)) {
+        const v = s[k];
+        if (k === "size" ? Number.isInteger(v) && v >= 0 && v < S.size.length : Object.hasOwn(S[k], v)) out[k] = v;
+      }
+      return out;
+    };
+    const apply = (s) => {
+      style.setProperty("--doc-size", `${S.size[s.size]}px`);
+      style.setProperty("--doc-leading", S.leading[s.leading]);
+      style.setProperty("--doc-width", S.width[s.width]);
+      style.setProperty("--doc-track", S.spacing[s.spacing][0]);
+      style.setProperty("--doc-word", S.spacing[s.spacing][1]);
+      style.setProperty("--doc-font", S.font[s.font]);
+    };
+    const save = (s) => {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(s));
+      } catch {}
+    };
+
+    let state = { ...D };
+    try {
+      state = valid(JSON.parse(localStorage.getItem(KEY) || "{}"));
+    } catch {}
+    apply(state);
+
+    window.bwsshdReading = {
+      S,
+      D,
+      get: () => state,
+      set: (n) => {
+        state = valid({ ...state, ...n });
+        apply(state);
+        save(state);
+        return state;
+      },
+      reset: () => {
+        state = { ...D };
+        apply(state);
+        try {
+          localStorage.removeItem(KEY);
+        } catch {}
+        return state;
+      },
+    };
+  })();
+</script>
