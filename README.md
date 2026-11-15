@@ -172,7 +172,7 @@ Grab a prebuilt binary from the [releases](https://github.com/Dxsk/bwsshd/releas
 Or install with Cargo:
 
 ```sh
-cargo install --locked --git https://github.com/Dxsk/bwsshd
+cargo install bwsshd
 ```
 
 Or build from source into `dist/`:
