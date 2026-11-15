@@ -39,6 +39,12 @@ deterministic key per host.
 
 One key, one attempt, no wasted tries.
 
+It also keeps several machines in step. The vault already syncs your keys to
+every device where Bitwarden runs, but the `ssh_config` pointing at them used
+to be copied and fixed by hand on each desktop and laptop. With bwsshd, a new
+machine only needs the Bitwarden app and one install: the config rebuilds
+itself from the vault, and a key renamed on one device updates everywhere.
+
 It also works the same whether your Bitwarden desktop app is the native package,
 the Flatpak or the Snap, and whether your backend is Bitwarden cloud or a
 self-hosted Vaultwarden.
