@@ -40,7 +40,7 @@ Every [release](https://github.com/Dxsk/bwsshd/releases) ships one archive per p
 ## With Cargo
 
 ```sh
-cargo install --locked --git https://github.com/Dxsk/bwsshd
+cargo install bwsshd
 ```
 
 ## From source

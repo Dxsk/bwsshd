@@ -1,11 +1,11 @@
 ---
-import { REPO, siteUrl } from "../site";
+import { siteUrl } from "../site";
 
 const methods = [
   { id: "linux", label: "Linux", prompt: "$", cmd: `curl -fsSL ${siteUrl("/install.sh")} | sh` },
   { id: "macos", label: "macOS", prompt: "$", cmd: `curl -fsSL ${siteUrl("/install.sh")} | sh` },
   { id: "windows", label: "Windows", prompt: "PS>", cmd: `irm ${siteUrl("/install.ps1")} | iex` },
-  { id: "cargo", label: "Cargo", prompt: "$", cmd: `cargo install --locked --git ${REPO}` },
+  { id: "cargo", label: "Cargo", prompt: "$", cmd: "cargo install bwsshd" },
 ];
 ---
 
