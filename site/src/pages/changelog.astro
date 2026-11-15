@@ -1,0 +1,58 @@
+---
+import { getCollection, render } from "astro:content";
+import Base from "../layouts/Base.astro";
+
+const [entry] = await getCollection("changelog");
+const { Content } = await render(entry);
+---
+
+<Base title="Changelog | bwsshd" description="Every bwsshd release, generated from Conventional Commits by release-please.">
+  <div class="wrap page">
+    <span class="eyebrow">Changelog</span>
+    <div class="log">
+      <Content />
+    </div>
+  </div>
+</Base>
+
+<style>
+  .page {
+    max-width: 820px;
+    padding-top: 56px;
+    padding-bottom: 96px;
+  }
+  .log {
+    color: var(--soft);
+  }
+  .log :global(h1) {
+    font-size: clamp(34px, 5vw, 44px);
+    margin: 8px 0 24px;
+  }
+  .log :global(h2) {
+    font-size: 26px;
+    margin: 48px 0 8px;
+    padding-top: 24px;
+    border-top: 1px solid var(--hairline);
+  }
+  .log :global(h2 a) {
+    color: var(--text);
+  }
+  .log :global(h3) {
+    font-size: 15px;
+    font-family: var(--font-mono);
+    letter-spacing: 0;
+    color: var(--signal);
+    margin: 20px 0 8px;
+  }
+  .log :global(ul) {
+    margin: 0;
+    padding-left: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .log :global(li a) {
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+</style>
