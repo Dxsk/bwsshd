@@ -3,7 +3,7 @@
   "include-component-in-tag": false,
   "packages": {
     ".": {
-      "release-type": "go",
+      "release-type": "rust",
       "package-name": "bwsshd"
     }
   }
