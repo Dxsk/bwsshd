@@ -144,6 +144,18 @@ Examples:
 Version-like tokens such as `v1.2` are ignored, so they are never mistaken for a
 hostname.
 
+**Your own `Host` name.** Write `(alias,address)` where the host would go to
+type a short name after `ssh` while connecting to an address:
+
+```
+debian@(vps1,10.0.0.1):23487        ->  Host vps1, HostName 10.0.0.1
+debian@(vps2,[2001:db8::20]):23487  ->  Host vps2, HostName 2001:db8::20
+```
+
+The alias also names the `.pub` file, so it only takes letters, digits, `.`,
+`-` and `_` (no wildcards). The address is an IP, IPv6 with or without
+brackets, or a DNS name; a single-label name like `nas` is fine here.
+
 Add `[nobwsshd]` anywhere in the name to make bwsshd skip a key entirely.
 
 ---
