@@ -107,6 +107,13 @@ mod tests {
             ("ops admin@10.0.0.5:22 prod", "10.0.0.5", "admin", "22"),
             ("admin@[::1]:2222", "::1", "admin", "2222"),
             ("bastion ::1", "::1", "", ""),
+            (
+                "ops admin@[2001:db8::10]:2222",
+                "2001:db8::10",
+                "admin",
+                "2222",
+            ),
+            ("db 2001:db8::10", "2001:db8::10", "", ""),
             ("ansible", "", "", ""),
             ("shared key", "", "", ""),
             (".hidden", "", "", ""),            // dots trimmed, no inner dot

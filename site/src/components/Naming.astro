@@ -3,6 +3,7 @@ const presets = [
   "pve1.example.com",
   "prod root@10.0.0.5",
   "debian@pve1.example.com:2222",
+  "ops admin@[2001:db8::10]:2222",
   "deploy v1.2 server",
   "ansible",
   "old box [nobwsshd]",
@@ -167,7 +168,13 @@ const presets = [
 
   // A typing demo runs until the visitor touches the field, so the section
   // shows it reacts to every keystroke.
-  const demo = ["debian@pve1.example.com:2222", "prod root@10.0.0.5", "deploy v1.2 server", "backup box [nobwsshd]"];
+  const demo = [
+    "debian@pve1.example.com:2222",
+    "prod root@10.0.0.5",
+    "ops admin@[2001:db8::10]:2222",
+    "deploy v1.2 server",
+    "backup box [nobwsshd]",
+  ];
   let demoOn = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let timer = 0;
 
