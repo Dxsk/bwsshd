@@ -15,6 +15,9 @@
   --muted: #a3acc2;
   --faint: #7d87a3;
   --signal: #4fe3c8;
+  /* Bold text in explanations. Lilac rather than cyan, so it never reads as a
+     link. */
+  --emph: #c9bcff;
   --signal-deep: #1e5f57;
   --on-signal: #06231e;
   --reject: #ffb547;
@@ -53,6 +56,12 @@ body {
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+}
+
+strong,
+b {
+  color: var(--emph);
+  font-weight: 600;
 }
 
 a {
