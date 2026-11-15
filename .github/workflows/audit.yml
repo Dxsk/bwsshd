@@ -1,0 +1,21 @@
+name: Audit
+
+# Scan dependencies for known RustSec advisories.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+    paths: [Cargo.toml, Cargo.lock]
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit
