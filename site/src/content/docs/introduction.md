@@ -34,6 +34,10 @@ Host pve1.example.com
 
 The private key stays in the vault. The `.pub` file only tells SSH which key to ask the agent to sign with. When you connect, Bitwarden asks you to approve the signature.
 
+## Every machine, same setup
+
+Your keys already follow you through the vault to every device where Bitwarden runs, but the `ssh_config` that points at them used to be copied and fixed by hand on each one. With bwsshd, a new desktop or laptop only needs the Bitwarden app and one install line: the config rebuilds itself from the vault, and a key renamed on one device updates the config everywhere.
+
 ## Where it runs
 
 - **Linux**: native, Flatpak and Snap installs of the desktop app.

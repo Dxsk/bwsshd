@@ -3,6 +3,8 @@ import Base from "../layouts/Base.astro";
 import InstallTabs from "../components/InstallTabs.astro";
 import SceneCard from "../components/SceneCard.astro";
 import Naming from "../components/Naming.astro";
+import { siteUrl } from "../site";
+import { VERSION } from "../version";
 
 const BW_AGENT = "https://bitwarden.com/help/ssh-agent/";
 
@@ -23,8 +25,8 @@ const audiences = [
     icon: '<circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20a6.5 6.5 0 0 1 13 0"></path><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"></path><path d="M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path>',
   },
   {
-    title: "People on more than one OS",
-    text: "The same tool and the same naming on Linux, macOS and Windows, with the Bitwarden socket or pipe found on its own.",
+    title: "People with more than one machine",
+    text: "Desktop and laptop, Linux, macOS or Windows: the vault syncs the keys, and bwsshd rebuilds the same config on each machine in minutes.",
     icon: '<rect x="2" y="4" width="14" height="10" rx="1.5"></rect><path d="M6 18h6M9 14v4"></path><rect x="17.5" y="8" width="4.5" height="12" rx="1"></rect><path d="M19.75 17h.01"></path>',
   },
 ];
@@ -132,6 +134,31 @@ Received disconnect from 203.0.113.10 port 22:2: Too many authentication failure
 bwsshd: wrote ~/.ssh/config.automatic.bw: 12 host(s), 1 key(s) without a hostname
 <span class="p">$</span> ssh pve1.example.com
 <span class="p">debian@pve1:~$</span></pre>
+      </div>
+    </div>
+
+    <div class="wrap split devices">
+      <div class="terms">
+        <pre class="term good"><span class="dim">new laptop, a few minutes later</span>
+<span class="p">$</span> curl -fsSL {siteUrl("/install.sh")} | sh
+bwsshd: installed {VERSION} to /home/you/.local/bin/bwsshd
+bwsshd: running as a systemd user service; logs: journalctl --user -u bwsshd -f
+<span class="p">$</span> ssh pve1.example.com
+<span class="p">debian@pve1:~$</span></pre>
+      </div>
+      <div class="split-copy">
+        <span class="eyebrow">And on every machine</span>
+        <h3 class="sub">Same keys on the desktop and the laptop.</h3>
+        <p class="lead">
+          Your SSH keys live in the vault, so they already follow you to every device where Bitwarden runs.{" "}
+          The <code class="inline-code">ssh_config</code> did not: on each machine you copied{" "}
+          <code class="inline-code">.pub</code> files and rewrote <code class="inline-code">Host</code> blocks by hand,
+          and they drifted apart.
+        </p>
+        <p class="lead">
+          With bwsshd, a new machine is the desktop app plus one install line. The config rebuilds itself from the vault,
+          and a key renamed on one device updates the config on all of them.
+        </p>
       </div>
     </div>
   </section>
@@ -423,6 +450,12 @@ bwsshd: wrote ~/.ssh/config.automatic.bw: 12 host(s), 1 key(s) without a hostnam
   }
   .split-copy h2 {
     font-size: clamp(30px, 4vw, 40px);
+  }
+  .devices {
+    margin-top: 80px;
+  }
+  .sub {
+    font-size: clamp(24px, 3vw, 30px);
   }
   .eyebrow.reject {
     color: var(--reject);
