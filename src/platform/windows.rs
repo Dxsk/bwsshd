@@ -4,6 +4,7 @@
 use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use super::{AgentStream, clean_abs, to_slash};
 
@@ -21,6 +22,14 @@ pub fn default_agent_paths(_home: &Path) -> Vec<PathBuf> {
     vec![PathBuf::from(OPENSSH_AGENT_PIPE)]
 }
 
+/// Win32 ERROR_PIPE_BUSY: every pipe instance is taken, typically by an ssh
+/// session talking to the agent at that moment. Reporting it as "agent absent"
+/// would wipe the config until the next tick, so retry for up to ~2 s like
+/// go-winio's DialPipe did.
+const ERROR_PIPE_BUSY: i32 = 231;
+const BUSY_RETRIES: u32 = 20;
+const BUSY_WAIT: Duration = Duration::from_millis(100);
+
 /// Connects to the agent at `path`. A named pipe opens like a regular file, so
 /// std is enough; no Win32 bindings needed.
 pub fn dial_agent(path: &str) -> io::Result<Box<dyn AgentStream>> {
@@ -30,8 +39,17 @@ pub fn dial_agent(path: &str) -> io::Result<Box<dyn AgentStream>> {
             format!("{path}: only named pipes (\\\\.\\pipe\\...) are supported on Windows"),
         ));
     }
-    let pipe = OpenOptions::new().read(true).write(true).open(path)?;
-    Ok(Box::new(pipe))
+    let mut attempt = 0;
+    loop {
+        match OpenOptions::new().read(true).write(true).open(path) {
+            Ok(pipe) => return Ok(Box::new(pipe)),
+            Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY) && attempt < BUSY_RETRIES => {
+                attempt += 1;
+                std::thread::sleep(BUSY_WAIT);
+            }
+            Err(e) => return Err(e),
+        }
+    }
 }
 
 /// Text to write after `Include `. OpenSSH on Windows treats a token that does
