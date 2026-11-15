@@ -10,18 +10,22 @@ const audiences = [
   {
     title: "Homelab and Proxmox admins",
     text: "Dozens of nodes, containers and VMs, one key each. bwsshd keeps every host block in step with the vault, no hand-edited config.",
+    icon: '<rect x="3" y="3" width="18" height="7" rx="1.5"></rect><rect x="3" y="14" width="18" height="7" rx="1.5"></rect><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"></path>',
   },
   {
     title: "Ops on hardened servers",
     text: "Security baselines such as the CIS benchmarks cap MaxAuthTries at 4 or less. One pinned key per host means one attempt, not a lockout.",
+    icon: '<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"></path><rect x="9" y="11" width="6" height="5" rx="1"></rect><path d="M10.5 11V9.5a1.5 1.5 0 0 1 3 0V11"></path>',
   },
   {
     title: "Teams sharing keys in Bitwarden",
     text: "Bitwarden and Vaultwarden organizations can share SSH key items. Everyone gets the same host mapping from the same item names.",
+    icon: '<circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20a6.5 6.5 0 0 1 13 0"></path><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"></path><path d="M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path>',
   },
   {
     title: "People on more than one OS",
     text: "The same tool and the same naming on Linux, macOS and Windows, with the Bitwarden socket or pipe found on its own.",
+    icon: '<rect x="2" y="4" width="14" height="10" rx="1.5"></rect><path d="M6 18h6M9 14v4"></path><rect x="17.5" y="8" width="4.5" height="12" rx="1"></rect><path d="M19.75 17h.01"></path>',
   },
 ];
 
@@ -142,6 +146,20 @@ bwsshd: wrote ~/.ssh/config.automatic.bw: 12 host(s), 1 key(s) without a hostnam
         {
           audiences.map((a) => (
             <div class="who-card">
+              <span class="who-icon">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                  set:html={a.icon}
+                />
+              </span>
               <h3>{a.title}</h3>
               <p>{a.text}</p>
             </div>
@@ -465,6 +483,18 @@ bwsshd: wrote ~/.ssh/config.automatic.bw: 12 host(s), 1 key(s) without a hostnam
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+  .who-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--signal);
+    border: 1px solid var(--signal-deep);
+    background: rgba(79, 227, 200, 0.06);
+    margin-bottom: 4px;
   }
   .who-card h3 {
     font-size: 19px;
