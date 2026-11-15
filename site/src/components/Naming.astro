@@ -4,6 +4,8 @@ const presets = [
   "prod root@10.0.0.5",
   "debian@pve1.example.com:2222",
   "ops admin@[2001:db8::10]:2222",
+  "debian@(vps1,10.0.0.1):23487",
+  "debian@(vps2,[2001:db8::20]):23487",
   "deploy v1.2 server",
   "ansible",
   "old box [nobwsshd]",
@@ -17,7 +19,9 @@ const presets = [
       <h2 id="naming-title">Name the key. Get the config.</h2>
       <p class="lead">
         The first token shaped like <code class="inline-code">[user@]host[:port]</code> in the Bitwarden item name becomes
-        the target. Version-like tokens are ignored, and <code class="inline-code">[nobwsshd]</code> opts a key out.
+        the target. Want your own name after <code class="inline-code">ssh</code>? Write{" "}
+        <code class="inline-code">(alias,address)</code> instead of the host. Version-like tokens are ignored, and{" "}
+        <code class="inline-code">[nobwsshd]</code> opts a key out.
         <strong class="try">Type a name below and watch the config follow.</strong>
       </p>
     </div>
@@ -53,6 +57,7 @@ const presets = [
           <div class="legend" aria-hidden="true">
             <span><i class="sw user"></i>user</span>
             <span><i class="sw host"></i>host</span>
+            <span><i class="sw addr"></i>address</span>
             <span><i class="sw port"></i>port</span>
             <span><i class="sw ignored"></i>ignored</span>
           </div>
@@ -98,7 +103,6 @@ const presets = [
 
   /** One chip per word of the name, showing the role bwsshd gives it. */
   function renderTokens(name: string) {
-    const t = parseTarget(name);
     let matched = false;
     const chips: HTMLElement[] = [];
     for (const word of name.split(/\s+/).filter(Boolean)) {
@@ -106,23 +110,35 @@ const presets = [
         chips.push(el("span", "tok skip", word));
         continue;
       }
+      // bwsshd keeps the first word that parses on its own, so re-parse each.
+      const t = matched ? undefined : parseTarget(word);
       const trimmed = word.replace(/^\.+|\.+$/g, "");
-      const isTarget =
-        !matched && t && (trimmed === t.host || trimmed.endsWith(`@${t.host}`) || trimmed.includes(`${t.host}:`) || trimmed.includes(`[${t.host}]`));
-      if (!isTarget || !t) {
-        const version = /\d/.test(word) && word.includes(".") && !looksLikeHost(trimmed);
+      const hostport = trimmed.slice(trimmed.lastIndexOf("@") + 1);
+      if (!t) {
         const chip = el("span", "tok ignored", word);
-        chip.title = version ? "looks like a version, ignored" : "not a host, ignored";
+        chip.title = hostport.startsWith("(")
+          ? "not a valid (alias,address), ignored"
+          : /\d/.test(word) && word.includes(".") && !looksLikeHost(trimmed)
+            ? "looks like a version, ignored"
+            : "not a host, ignored";
         chips.push(chip);
         continue;
       }
       matched = true;
       const chip = el("span", "tok target");
-      if (t.user !== undefined) {
-        chip.append(el("span", "user", t.user), el("span", "sep", "@"));
+      if (t.user !== undefined) chip.append(el("span", "user", t.user), el("span", "sep", "@"));
+      const bracketed = (s: string) => (hostport.includes(`[${s}]`) ? `[${s}]` : s);
+      if (hostport.startsWith("(")) {
+        chip.append(
+          el("span", "sep", "("),
+          el("span", "host", t.host),
+          el("span", "sep", ","),
+          el("span", "addr", bracketed(t.hostname)),
+          el("span", "sep", ")"),
+        );
+      } else {
+        chip.append(el("span", "host", t.port ? bracketed(t.host) : t.host));
       }
-      const v6 = t.port && trimmed.includes(`[${t.host}]`);
-      chip.append(el("span", "host", v6 ? `[${t.host}]` : t.host));
       if (t.port) chip.append(el("span", "sep", ":"), el("span", "port", t.port));
       chips.push(chip);
     }
@@ -145,7 +161,7 @@ const presets = [
       lines.push(["", `#   ${JSON.stringify(name)} -> ~/.ssh/bwsshd-keys/${file}`, "c"]);
     } else {
       lines.push(["Host ", t.host, "host"]);
-      lines.push(["    HostName ", t.host, "host"]);
+      lines.push(["    HostName ", t.hostname, t.hostname === t.host ? "host" : "addr"]);
       if (t.user !== undefined) lines.push(["    User ", t.user, "user"]);
       if (t.port) lines.push(["    Port ", t.port, "port"]);
       lines.push(["    IdentityAgent ", "~/.bitwarden-ssh-agent.sock", "v"]);
@@ -172,6 +188,7 @@ const presets = [
     "debian@pve1.example.com:2222",
     "prod root@10.0.0.5",
     "ops admin@[2001:db8::10]:2222",
+    "debian@(vps1,10.0.0.1):23487",
     "deploy v1.2 server",
     "backup box [nobwsshd]",
   ];
@@ -425,6 +442,9 @@ const presets = [
   .play :global(.host) {
     color: var(--signal);
   }
+  .play :global(.addr) {
+    color: #ffd27a;
+  }
   .play :global(.port) {
     color: #7cc4ff;
   }
@@ -433,6 +453,9 @@ const presets = [
   }
   .sw.host {
     background: var(--signal);
+  }
+  .sw.addr {
+    background: #ffd27a;
   }
   .sw.port {
     background: #7cc4ff;

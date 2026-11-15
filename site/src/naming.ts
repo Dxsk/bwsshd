@@ -2,7 +2,10 @@
 // Keep the two in step when the naming rules change.
 
 export interface Target {
+  /** The Host pattern: what you type after `ssh`. */
   host: string;
+  /** Where SSH connects; differs from `host` only with `(alias,address)`. */
+  hostname: string;
   user?: string;
   port?: string;
 }
@@ -55,13 +58,45 @@ export function looksLikeHost(s: string): boolean {
   return /^[A-Za-z]+$/.test(s.slice(dot + 1));
 }
 
+const isAlias = (s: string) => /^[A-Za-z0-9_][A-Za-z0-9._-]*$/.test(s);
+
+function isAddress(s: string): boolean {
+  if (isIpv4(s) || isIpv6(s)) return true;
+  return s !== "" && s.split(".").every((l) => /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/.test(l));
+}
+
+/** `(alias,address)[:port]`, mirroring split_alias in target.rs. */
+function splitAlias(s: string): [string, string, string | undefined] | undefined {
+  const close = s.indexOf(")");
+  if (!s.startsWith("(") || close < 0) return undefined;
+  const inner = s.slice(1, close);
+  const after = s.slice(close + 1);
+  let port: string | undefined;
+  if (after) {
+    if (!after.startsWith(":") || !isDigits(after.slice(1))) return undefined;
+    port = after.slice(1);
+  }
+  const comma = inner.indexOf(",");
+  if (comma < 0) return undefined;
+  const alias = inner.slice(0, comma);
+  let address = inner.slice(comma + 1);
+  if (address.startsWith("[") && address.endsWith("]")) address = address.slice(1, -1);
+  return isAlias(alias) && isAddress(address) ? [alias, address, port] : undefined;
+}
+
 export function parseTarget(name: string): Target | undefined {
   for (const raw of name.split(/\s+/).filter(Boolean)) {
     const field = raw.replace(/^\.+|\.+$/g, "");
     const at = field.lastIndexOf("@");
     const user = at >= 0 ? field.slice(0, at) : undefined;
-    const [host, port] = splitHostPort(at >= 0 ? field.slice(at + 1) : field);
-    if (looksLikeHost(host)) return { host, user, port };
+    const hostport = at >= 0 ? field.slice(at + 1) : field;
+    if (hostport.startsWith("(")) {
+      const alias = splitAlias(hostport);
+      if (alias) return { host: alias[0], hostname: alias[1], user, port: alias[2] };
+      continue;
+    }
+    const [host, port] = splitHostPort(hostport);
+    if (looksLikeHost(host)) return { host, hostname: host, user, port };
   }
   return undefined;
 }
