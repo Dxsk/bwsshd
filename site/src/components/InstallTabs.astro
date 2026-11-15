@@ -1,0 +1,160 @@
+---
+import { REPO, siteUrl } from "../site";
+
+const methods = [
+  { id: "linux", label: "Linux", prompt: "$", cmd: `curl -fsSL ${siteUrl("/install.sh")} | sh` },
+  { id: "macos", label: "macOS", prompt: "$", cmd: `curl -fsSL ${siteUrl("/install.sh")} | sh` },
+  { id: "windows", label: "Windows", prompt: "PS>", cmd: `irm ${siteUrl("/install.ps1")} | iex` },
+  { id: "cargo", label: "Cargo", prompt: "$", cmd: `cargo install --locked --git ${REPO}` },
+];
+---
+
+<div class="install" data-install>
+  <div role="tablist" aria-label="Install method" class="tabs">
+    {
+      methods.map((m, i) => (
+        <button
+          role="tab"
+          id={`tab-${m.id}`}
+          aria-controls={`panel-${m.id}`}
+          aria-selected={i === 0 ? "true" : "false"}
+          tabindex={i === 0 ? 0 : -1}
+          data-os={m.id}
+        >
+          {m.label}
+        </button>
+      ))
+    }
+  </div>
+  {
+    methods.map((m, i) => (
+      <div role="tabpanel" id={`panel-${m.id}`} aria-labelledby={`tab-${m.id}`} hidden={i !== 0} class="panel">
+        <code>
+          <span class="prompt" aria-hidden="true">
+            {m.prompt}
+          </span>
+          <span data-cmd>{m.cmd}</span>
+        </code>
+        <button class="copy" data-copy>
+          Copy
+        </button>
+      </div>
+    ))
+  }
+</div>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>("[data-install]")) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>("[role=tab]")];
+    const select = (tab: HTMLButtonElement, focus = false) => {
+      for (const t of tabs) {
+        const on = t === tab;
+        t.setAttribute("aria-selected", String(on));
+        t.tabIndex = on ? 0 : -1;
+        root.querySelector<HTMLElement>(`#${t.getAttribute("aria-controls")}`)!.hidden = !on;
+      }
+      if (focus) tab.focus();
+      try {
+        localStorage.setItem("bwsshd-os", tab.dataset.os ?? "");
+      } catch {}
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener("click", () => select(t));
+      t.addEventListener("keydown", (e) => {
+        const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (step) select(tabs[(i + step + tabs.length) % tabs.length], true);
+      });
+    });
+
+    let saved = "";
+    try {
+      saved = localStorage.getItem("bwsshd-os") ?? "";
+    } catch {}
+    const ua = navigator.userAgent;
+    const guess = saved || (/Windows/.test(ua) ? "windows" : /Mac OS X|Macintosh/.test(ua) ? "macos" : "linux");
+    const initial = tabs.find((t) => t.dataset.os === guess);
+    if (initial) select(initial);
+
+    for (const btn of root.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
+      btn.addEventListener("click", async () => {
+        const cmd = btn.parentElement?.querySelector("[data-cmd]")?.textContent ?? "";
+        try {
+          await navigator.clipboard.writeText(cmd);
+          btn.textContent = "Copied";
+        } catch {
+          btn.textContent = "Select it";
+        }
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      });
+    }
+  }
+</script>
+
+<style>
+  .install {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    overflow: hidden;
+    max-width: 580px;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--surface);
+  }
+  [role="tab"] {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font: 500 13px var(--font-body);
+    cursor: pointer;
+  }
+  [role="tab"][aria-selected="true"] {
+    background: #1e2640;
+    border-color: #2e3756;
+    color: var(--text);
+  }
+  .panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 14px 14px 18px;
+  }
+  .panel[hidden] {
+    display: none;
+  }
+  code {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: 14px;
+    scrollbar-width: thin;
+  }
+  .prompt {
+    color: var(--signal);
+    margin-right: 10px;
+    user-select: none;
+  }
+  .copy {
+    flex: 0 0 auto;
+    min-height: 44px;
+    min-width: 80px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--raised);
+    color: var(--text);
+    font: 600 12px var(--font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+</style>

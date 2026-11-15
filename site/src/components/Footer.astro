@@ -1,0 +1,44 @@
+---
+import { COFFEE, FORGE, REPO } from "../site";
+---
+
+<footer>
+  <div class="wrap inner">
+    <span class="name">bwsshd</span>
+    <span>MIT License</span>
+    <a href={REPO}>GitHub</a>
+    <a href={FORGE}>Forge</a>
+    <a href={COFFEE}>Buy me a coffee</a>
+    <span class="note">Not affiliated with Bitwarden, Inc.</span>
+  </div>
+</footer>
+
+<style>
+  footer {
+    border-top: 1px solid var(--hairline);
+  }
+  .inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 32px;
+    align-items: center;
+    padding-top: 32px;
+    padding-bottom: 32px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .name {
+    font-family: var(--font-mono);
+    color: var(--text);
+  }
+  a {
+    color: var(--muted);
+  }
+  a:hover {
+    color: var(--text);
+  }
+  .note {
+    margin-left: auto;
+    color: var(--faint);
+  }
+</style>
