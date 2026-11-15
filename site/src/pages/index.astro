@@ -168,7 +168,45 @@ bwsshd: running as a systemd user service; logs: journalctl --user -u bwsshd -f
     </div>
   </section>
 
-  <section id="setup" class="section dots" aria-labelledby="setup-title">
+  <section id="how" class="section dots" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">How it works</span>
+        <h2 id="how-title">Three scenes, one idea.</h2>
+        <p class="lead">Each scene is a small 3D model. Drag to orbit, hover any block to see what it is.</p>
+      </div>
+      <div class="scenes">
+        <SceneCard
+          scene="without"
+          step="01 / without"
+          title="Every key, in any order"
+          tone="reject"
+          alt="Three keys fly from a laptop to a server and are rejected"
+        >
+          The agent offers key after key. Three misses and the server hangs up.
+        </SceneCard>
+        <SceneCard
+          scene="with"
+          step="02 / with bwsshd"
+          title="One key, one try"
+          alt="The vault feeds bwsshd, which sends one key to the server"
+        >
+          bwsshd maps each key name to a host block. SSH asks the vault to sign with exactly that key.
+        </SceneCard>
+        <SceneCard
+          scene="lifecycle"
+          step="03 / lifecycle"
+          title="Follows your vault"
+          toggle
+          alt="The vault with its key folder populated"
+        >
+          Close Bitwarden and bwsshd empties the config and removes its key folder. Open it and everything comes back.
+        </SceneCard>
+      </div>
+    </div>
+  </section>
+
+  <section id="setup" class="section" aria-labelledby="setup-title">
     <div class="wrap">
       <div class="section-head">
         <span class="eyebrow">Setup</span>
@@ -208,44 +246,6 @@ bwsshd: running as a systemd user service; logs: journalctl --user -u bwsshd -f
           <a href="/docs/install/">All install options</a>
         </li>
       </ol>
-    </div>
-  </section>
-
-  <section id="how" class="section" aria-labelledby="how-title">
-    <div class="wrap">
-      <div class="section-head">
-        <span class="eyebrow">How it works</span>
-        <h2 id="how-title">Three scenes, one idea.</h2>
-        <p class="lead">Each scene is a small 3D model. Drag to orbit, hover any block to see what it is.</p>
-      </div>
-      <div class="scenes">
-        <SceneCard
-          scene="without"
-          step="01 / without"
-          title="Every key, in any order"
-          tone="reject"
-          alt="Three keys fly from a laptop to a server and are rejected"
-        >
-          The agent offers key after key. Three misses and the server hangs up.
-        </SceneCard>
-        <SceneCard
-          scene="with"
-          step="02 / with bwsshd"
-          title="One key, one try"
-          alt="The vault feeds bwsshd, which sends one key to the server"
-        >
-          bwsshd maps each key name to a host block. SSH asks the vault to sign with exactly that key.
-        </SceneCard>
-        <SceneCard
-          scene="lifecycle"
-          step="03 / lifecycle"
-          title="Follows your vault"
-          toggle
-          alt="The vault with its key folder populated"
-        >
-          Close Bitwarden and bwsshd empties the config and removes its key folder. Open it and everything comes back.
-        </SceneCard>
-      </div>
     </div>
   </section>
 
