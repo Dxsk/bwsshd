@@ -1,0 +1,28 @@
+[package]
+name = "bwsshd"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Keep your ssh_config in sync with the SSH keys stored in your Bitwarden vault"
+license = "MIT"
+repository = "https://github.com/Dxsk/bwsshd"
+readme = "README.md"
+keywords = ["ssh", "bitwarden", "ssh-agent", "ssh-config"]
+categories = ["command-line-utilities"]
+exclude = ["site/", "dist/", ".github/"]
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+humantime = "2"
+sha2 = "0.10"
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
