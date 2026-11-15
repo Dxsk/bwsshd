@@ -7,8 +7,8 @@
 *One key per host, signed from the vault, never written to disk.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/github/go-mod/go-version/Dxsk/bwsshd?logo=go&logoColor=white)](go.mod)
-![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-informational)
+[![Rust](https://img.shields.io/badge/Rust-2024-orange?logo=rust&logoColor=white)](Cargo.toml)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-informational)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-dxsk-yellow?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/dxsk)
 
 </div>
@@ -47,11 +47,22 @@ self-hosted Vaultwarden.
 The SSH agent socket is created by the desktop client, so the backend does not
 change anything.
 
-**Linux and Windows.** On Linux/macOS the agent is a unix socket; on Windows it
-is the named pipe `\\.\pipe\openssh-ssh-agent`, which the Bitwarden desktop app
-registers as the standard OpenSSH agent. bwsshd auto-discovers whichever applies,
-and on Windows writes the generated config with the forward-slash paths and the
-relative `Include` that the built-in OpenSSH client expects.
+**Linux, macOS and Windows, amd64 and arm64.** On Linux and macOS the agent is
+a unix socket; on Windows it is the named pipe `\\.\pipe\openssh-ssh-agent`,
+which the Bitwarden desktop app registers as the standard OpenSSH agent.
+bwsshd auto-discovers whichever applies:
+
+| Platform | Install | Agent endpoint |
+|----------|---------|----------------|
+| Linux | native / deb / rpm | `~/.bitwarden-ssh-agent.sock` |
+| Linux | Flatpak | `~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock` |
+| Linux | Snap | `~/snap/bitwarden/current/.bitwarden-ssh-agent.sock` |
+| macOS | `.dmg` download | `~/.bitwarden-ssh-agent.sock` |
+| macOS | Mac App Store | `~/Library/Containers/com.bitwarden.desktop/Data/.bitwarden-ssh-agent.sock` |
+| Windows | any | `\\.\pipe\openssh-ssh-agent` |
+
+On Windows it also writes the generated config with the forward-slash paths and
+the relative `Include` that the built-in OpenSSH client expects.
 
 ## How it works
 
@@ -112,11 +123,14 @@ Add `[nobwsshd]` anywhere in the name to make bwsshd skip a key entirely.
 
 <br>
 
-Grab a prebuilt binary from the [releases](https://github.com/Dxsk/bwsshd/releases)
-(`.tar.gz` for Linux, `.zip` for Windows), or install with Go:
+Grab a prebuilt binary from the [releases](https://github.com/Dxsk/bwsshd/releases):
+`.tar.gz` for Linux (static, any distro) and macOS, `.zip` for Windows, each for
+`amd64` and `arm64`.
+
+Or install with Cargo:
 
 ```sh
-go install github.com/Dxsk/bwsshd@latest
+cargo install --locked --git https://github.com/Dxsk/bwsshd
 ```
 
 Or build from source into `dist/`:
@@ -126,11 +140,12 @@ make build
 ```
 
 On Windows, run `make build` from **Git Bash** (the Makefile uses a POSIX shell);
-a plain `go build -o dist/bwsshd.exe .` works from any shell too.
+a plain `cargo build --release` works from any shell too, the binary lands in
+`target/release/`.
 
 On first run, bwsshd adds an `Include` of the generated file to the top of your
 `~/.ssh/config` automatically (only once), so plain `ssh host` picks up the
-generated blocks. On Linux that line is an absolute path:
+generated blocks. On Linux and macOS that line is an absolute path:
 
 ```
 Include /home/you/.ssh/config.automatic.bw
@@ -159,7 +174,7 @@ bwsshd
 Run as a background daemon that regenerates on every key change:
 
 ```sh
-bwsshd -watch
+bwsshd --watch
 ```
 
 **Run at login (systemd user service)**
@@ -189,7 +204,7 @@ Task at logon**, which the bundled script sets up for you (no admin needed):
 powershell -ExecutionPolicy Bypass -File .\packaging\windows\install.ps1
 ```
 
-It registers a task named `bwsshd` that runs `bwsshd -watch` at logon, in your
+It registers a task named `bwsshd` that runs `bwsshd --watch` at logon, in your
 session, **hidden** (no console window), and restarts it if it crashes. Logs go
 to `%LOCALAPPDATA%\bwsshd\bwsshd.log`:
 
@@ -201,6 +216,37 @@ Remove it with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\packaging\windows\uninstall.ps1
+```
+
+**Run at login (macOS)**
+
+A per-user LaunchAgent does the job. Save this as
+`~/Library/LaunchAgents/fr.infrasouveraine.bwsshd.plist`, adjusting the binary
+path and your home directory:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>fr.infrasouveraine.bwsshd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/bwsshd</string>
+        <string>--watch</string>
+        <string>--logfile</string>
+        <string>/Users/you/Library/Logs/bwsshd.log</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+</dict>
+</plist>
+```
+
+Then load it:
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/fr.infrasouveraine.bwsshd.plist
 ```
 
 The daemon polls the agent and rewrites the config only when the key set
@@ -218,14 +264,20 @@ generated config and removes its key directory until the app comes back.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-sock` | auto-discover | SSH agent endpoint; empty auto-discovers the Bitwarden socket (native/Flatpak/Snap on Linux) or named pipe (Windows) |
-| `-out` | `~/.ssh/config.automatic.bw` | Generated ssh_config file |
-| `-keydir` | `~/.ssh/bwsshd-keys` | Where public keys are written |
-| `-ssh-config` | `~/.ssh/config` | ssh_config to add the Include line to |
-| `-watch` | off | Loop instead of a single run |
-| `-interval` | `10s` | Poll interval in watch mode |
+| `--sock` | auto-discover | SSH agent endpoint; empty auto-discovers the Bitwarden socket (Linux, macOS) or named pipe (Windows) |
+| `--out` | `~/.ssh/config.automatic.bw` | Generated ssh_config file |
+| `--keydir` | `~/.ssh/bwsshd-keys` | Where public keys are written |
+| `--ssh-config` | `~/.ssh/config` | ssh_config to add the Include line to |
+| `--watch` | off | Loop instead of a single run |
+| `--interval` | `10s` | Poll interval in watch mode (`30s`, `1m`, ...) |
+| `--logfile` | stderr | Append logs to this file (used by the Windows scheduled task, which has no console) |
+| `--version` | | Print the version and exit |
 
 Auto-discovery also honors `BW_SSH_SOCK` and `BITWARDEN_SSH_AUTH_SOCK` if set.
+On Windows, `--sock` must be a named pipe (`\\.\pipe\...`).
+
+The single-dash spellings of the Go releases (`-watch`, `-interval 5s`, ...) are
+still accepted, so existing service files keep working after an upgrade.
 
 </details>
 
@@ -268,9 +320,10 @@ reproduction goes a long way.
 
 A few things keep the pipeline happy:
 
-- Keep the code `gofmt`-clean and `go vet`-clean, CI checks both.
+- Keep the code `cargo fmt`-clean and `cargo clippy`-clean, CI checks both on
+  Linux, macOS and Windows (`make lint` runs the same checks locally).
 - Add a test when you change behavior, the filesystem paths are covered with
-  `t.TempDir()` and an in-process SSH agent, follow the same style.
+  `tempfile::TempDir` and an in-process SSH agent, follow the same style.
 - Use [Conventional Commits](https://www.conventionalcommits.org) for commit
   messages (`fix:`, `feat:`, ...), the changelog and version bumps are generated
   from them automatically.
