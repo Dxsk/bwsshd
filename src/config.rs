@@ -71,7 +71,7 @@ pub fn generate(keys: &[Key], out: &Path, keydir: &Path, sock: &str) -> Result<(
         match target {
             Some(t) => {
                 hosts += 1;
-                let _ = writeln!(cfg, "Host {}\n    HostName {}", t.host, t.host);
+                let _ = writeln!(cfg, "Host {}\n    HostName {}", t.host, t.hostname);
                 if let Some(u) = &t.user {
                     let _ = writeln!(cfg, "    User {u}");
                 }
@@ -286,6 +286,30 @@ mod tests {
         }
         assert!(keydir.join("host.fr.pub").exists());
         assert!(keydir.join(KEYDIR_MARKER).exists());
+    }
+
+    #[test]
+    fn generate_alias_block() {
+        let dir = TempDir::new().unwrap();
+        let (out, keydir) = (dir.path().join("config.bw"), dir.path().join("keys"));
+        generate(
+            &[key("debian@(vps1,[2001:db8::10]):23487")],
+            &out,
+            &keydir,
+            "/sock",
+        )
+        .unwrap();
+        let cfg = read(&out);
+        for want in [
+            "Host vps1\n",
+            "HostName 2001:db8::10\n",
+            "User debian",
+            "Port 23487",
+        ] {
+            assert!(cfg.contains(want), "config missing {want:?}:\n{cfg}");
+        }
+        // The .pub is named after the alias, the name you type after `ssh`.
+        assert_eq!(pubs(&keydir), ["vps1.pub"]);
     }
 
     // Issue #3: two keys on the same host -> first wins, one block, one .pub.
