@@ -1,6 +1,7 @@
 //! Linux: a StatusNotifierItem over D-Bus (KDE natively, GNOME with the
 //! AppIndicator extension). The watch loop runs on the calling thread.
 
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
@@ -8,11 +9,12 @@ use ksni::blocking::TrayMethods;
 use ksni::menu::StandardItem;
 use ksni::{Icon, MenuItem};
 
-use super::{Notify, WAITING, icon_rgba, label};
+use super::{Notify, WAITING, icon_rgba, label, open_config, version_line};
 
 struct Tray {
     status: String,
     resync: Sender<()>,
+    out: PathBuf,
 }
 
 impl ksni::Tray for Tray {
@@ -49,6 +51,12 @@ impl ksni::Tray for Tray {
     fn menu(&self) -> Vec<MenuItem<Self>> {
         vec![
             StandardItem {
+                label: format!("bwsshd {}", version_line()),
+                enabled: false,
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
                 label: self.status.clone(),
                 enabled: false,
                 ..Default::default()
@@ -60,6 +68,12 @@ impl ksni::Tray for Tray {
                 activate: Box::new(|t: &mut Self| {
                     let _ = t.resync.send(());
                 }),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: "Open generated config".into(),
+                activate: Box::new(|t: &mut Self| open_config(&t.out)),
                 ..Default::default()
             }
             .into(),
@@ -76,7 +90,7 @@ impl ksni::Tray for Tray {
     }
 }
 
-pub fn run<F>(watch: F) -> Result<(), String>
+pub fn run<F>(out: PathBuf, watch: F) -> Result<(), String>
 where
     F: FnOnce(Receiver<()>, Notify) + Send + 'static,
 {
@@ -84,6 +98,7 @@ where
     let tray = Tray {
         status: WAITING.into(),
         resync: tx,
+        out,
     };
     // At login the panel may come up after us: wait for it instead of failing.
     let handle = tray

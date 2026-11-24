@@ -2,6 +2,8 @@
 //! forces a resync, quits. Windows and macOS go through tray-icon; Linux talks
 //! StatusNotifierItem over D-Bus with ksni, which keeps the musl build static.
 
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
@@ -27,15 +29,15 @@ pub type Notify = Box<dyn Fn(Status) + Send>;
 /// Shows the icon and runs `watch` with a resync trigger and a status sink.
 /// Never returns unless the icon cannot be created.
 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
-pub fn run<F>(watch: F) -> Result<(), String>
+pub fn run<F>(out: PathBuf, watch: F) -> Result<(), String>
 where
     F: FnOnce(Receiver<()>, Notify) + Send + 'static,
 {
-    imp::run(watch)
+    imp::run(out, watch)
 }
 
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
-pub fn run<F>(_watch: F) -> Result<(), String>
+pub fn run<F>(_out: PathBuf, _watch: F) -> Result<(), String>
 where
     F: FnOnce(Receiver<()>, Notify) + Send + 'static,
 {
@@ -43,6 +45,36 @@ where
 }
 
 pub const WAITING: &str = "Waiting for the first sync";
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Empty when built outside a git checkout (crates.io).
+pub const COMMIT: &str = env!("BWSSHD_COMMIT");
+pub const COMMIT_DATE: &str = env!("BWSSHD_COMMIT_DATE");
+
+/// `v0.2.0 · 1a2b3c4d5e · 2026-11-24`, without the parts the build lacks.
+pub fn version_line() -> String {
+    [format!("v{VERSION}"), COMMIT.into(), COMMIT_DATE.into()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
+/// Opens the generated config in a text editor.
+pub fn open_config(path: &Path) {
+    let mut cmd = if cfg!(windows) {
+        Command::new("notepad.exe")
+    } else if cfg!(target_os = "macos") {
+        let mut c = Command::new("open");
+        c.arg("-t");
+        c
+    } else {
+        Command::new("xdg-open")
+    };
+    if let Err(e) = cmd.arg(path).spawn() {
+        info!("open {}: {e}", path.display());
+    }
+}
 
 /// The status line shown at the top of the menu.
 pub fn label(status: &Status, now: Instant) -> String {
@@ -66,11 +98,11 @@ fn ago(d: Duration) -> String {
     format!("{} ago", humantime::format_duration(Duration::from_secs(s)))
 }
 
-/// A small isometric cube in the site's three teal tones, as RGBA.
+/// The site logo, an isometric cube in three teal tones, as RGBA.
 pub fn icon_rgba(size: u32) -> Vec<u8> {
     const TOP: [u8; 3] = [0x4f, 0xe3, 0xc8];
-    const LEFT: [u8; 3] = [0x2f, 0xa8, 0x93];
-    const RIGHT: [u8; 3] = [0x1e, 0x5f, 0x57];
+    const LEFT: [u8; 3] = [0x25, 0x8c, 0x7b];
+    const RIGHT: [u8; 3] = [0x33, 0xae, 0x99];
     let c = size as f32 / 2.0;
     let r = c - 1.0;
     let half_w = r * 3f32.sqrt() / 2.0;
@@ -122,7 +154,7 @@ mod tests {
         let at = |x: usize, y: usize| &px[(y * 32 + x) * 4..][..4];
         assert_eq!(at(0, 0)[3], 0);
         assert_eq!(at(16, 4), [0x4f, 0xe3, 0xc8, 255]);
-        assert_eq!(at(8, 22), [0x2f, 0xa8, 0x93, 255]);
-        assert_eq!(at(24, 22), [0x1e, 0x5f, 0x57, 255]);
+        assert_eq!(at(8, 22), [0x25, 0x8c, 0x7b, 255]);
+        assert_eq!(at(24, 22), [0x33, 0xae, 0x99, 255]);
     }
 }

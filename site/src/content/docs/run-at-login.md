@@ -9,7 +9,7 @@ In watch mode bwsshd polls the agent every 10 seconds and rewrites the config on
 
 ## The tray icon
 
-With `--tray`, bwsshd adds an icon to the Windows notification area, the macOS menu bar or the Linux system tray. Its menu shows when the agent was last read, and offers **Resync now** (rewrite the config right away) and **Quit bwsshd**. The Windows and macOS setups below turn it on; on Linux, KDE shows it natively and GNOME needs the AppIndicator extension.
+With `--tray`, bwsshd adds an icon to the Windows notification area, the macOS menu bar or the Linux system tray. Its right-click menu shows the version and when the agent was last read, and offers **Resync now** (rewrite the config right away), **Open generated config** (in a text editor) and **Quit bwsshd**. On Windows and macOS, a left click opens a small panel with the version, commit, build date and sync status. The Windows and macOS setups below turn it on; on Linux, KDE shows it natively and GNOME needs the AppIndicator extension.
 
 ## Linux: systemd user service
 
