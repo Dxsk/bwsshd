@@ -15,3 +15,4 @@ pub mod config;
 pub mod platform;
 pub mod sync;
 pub mod target;
+pub mod tray;

@@ -21,6 +21,13 @@ tempfile = "3"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+tao = "0.37.3"
+tray-icon = "0.24.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3.7", features = ["blocking"] }
+
 [profile.release]
 strip = true
 lto = true

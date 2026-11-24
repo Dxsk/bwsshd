@@ -7,6 +7,10 @@ order: 2
 
 In watch mode bwsshd polls the agent every 10 seconds and rewrites the config only when the key set changes. When Bitwarden closes, it empties the generated config and removes its key folder until the app comes back.
 
+## The tray icon
+
+With `--tray`, bwsshd adds an icon to the Windows notification area, the macOS menu bar or the Linux system tray. Its menu shows when the agent was last read, and offers **Resync now** (rewrite the config right away) and **Quit bwsshd**. The Windows and macOS setups below turn it on; on Linux, KDE shows it natively and GNOME needs the AppIndicator extension.
+
 ## Linux: systemd user service
 
 From an extracted release archive, or from a clone of the repository:
@@ -23,6 +27,18 @@ journalctl --user -u bwsshd -f
 
 Remove it with `make uninstall`.
 
+The service runs headless. On a desktop session, add the tray icon with an override:
+
+```sh
+systemctl --user edit bwsshd
+```
+
+```ini
+[Service]
+ExecStart=
+ExecStart=%h/.local/bin/bwsshd --watch --tray
+```
+
 ## Windows: scheduled task
 
 A classic Windows service is the wrong tool: it runs at boot as `LocalSystem` in session 0, where it sees neither your Bitwarden pipe nor your `~/.ssh`. The equivalent of a systemd user service is a **per-user task at logon**, which the bundled script registers (no admin rights needed):
@@ -31,7 +47,7 @@ A classic Windows service is the wrong tool: it runs at boot as `LocalSystem` in
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The task runs `bwsshd --watch` hidden, in your session, and restarts it if it crashes. Logs go to `%LOCALAPPDATA%\bwsshd\bwsshd.log`:
+The task runs `bwsshd --watch --tray` hidden, in your session, and restarts it if it crashes. Logs go to `%LOCALAPPDATA%\bwsshd\bwsshd.log`:
 
 ```powershell
 Get-Content -Wait "$env:LOCALAPPDATA\bwsshd\bwsshd.log"
@@ -53,11 +69,13 @@ The one-line installer sets this up for you. To do it by hand, save this as `~/L
     <array>
         <string>/Users/you/.local/bin/bwsshd</string>
         <string>--watch</string>
+        <string>--tray</string>
         <string>--logfile</string>
         <string>/Users/you/Library/Logs/bwsshd.log</string>
     </array>
     <key>RunAtLoad</key><true/>
-    <key>KeepAlive</key><true/>
+    <!-- Restart on crash, but not after Quit from the menu bar icon. -->
+    <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
 </dict>
 </plist>
 ```
