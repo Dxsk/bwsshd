@@ -367,6 +367,64 @@ mod tests {
         assert!(cli.sock.is_none() && cli.out.is_none());
     }
 
+    /// Drives the watch loop with queued controls; it returns once the
+    /// sender is dropped, so nothing depends on timing.
+    #[test]
+    fn watch_pause_resync_interval() {
+        use std::cell::RefCell;
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let out = dir.path().join("config.bw");
+        let keydir = dir.path().join("keys");
+        let gone = [dir.path().join("nope.sock").to_string_lossy().into_owned()];
+
+        let (tx, rx) = mpsc::channel();
+        tx.send(Control::Pause(true)).unwrap();
+        tx.send(Control::Resync).unwrap();
+        tx.send(Control::Interval(Duration::from_secs(30))).unwrap();
+        tx.send(Control::Pause(false)).unwrap();
+        drop(tx);
+
+        let seen = RefCell::new(Vec::new());
+        let notify = |s: Status| {
+            seen.borrow_mut().push(match s {
+                Status::Synced(_) => "synced",
+                Status::Absent(_) => "absent",
+                Status::Failed(_) => "failed",
+                Status::Paused(_) => "paused",
+            })
+        };
+        let mut saves = Vec::new();
+        let mut state = Settings::default();
+        watch(
+            &gone,
+            &out,
+            &keydir,
+            Duration::from_secs(3600),
+            &mut state,
+            &rx,
+            &notify,
+            &mut |s| saves.push((s.paused, s.interval)),
+        );
+
+        // The resync while paused runs quietly: no "absent" between pauses.
+        assert_eq!(
+            *seen.borrow(),
+            ["absent", "paused", "paused", "paused", "absent"]
+        );
+        let thirty = Some(Duration::from_secs(30));
+        assert_eq!(
+            saves,
+            [(true, None), (true, thirty), (false, thirty)],
+            "every change is saved"
+        );
+        assert!(fs_has(&out, "socket absent"));
+    }
+
+    fn fs_has(path: &Path, needle: &str) -> bool {
+        std::fs::read_to_string(path).is_ok_and(|s| s.contains(needle))
+    }
+
     #[test]
     fn interval_must_be_positive() {
         assert!(Cli::try_parse_from(args(&["bwsshd", "--interval", "0s"])).is_err());
