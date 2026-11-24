@@ -17,3 +17,4 @@ pub mod settings;
 pub mod sync;
 pub mod target;
 pub mod tray;
+pub mod update;

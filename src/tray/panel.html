@@ -21,6 +21,9 @@ body {
 }
 header { display: flex; align-items: center; gap: 10px; padding: 18px 20px 14px; border-bottom: 1px solid var(--hairline); background: var(--ground); }
 header h1 { font: 600 20px/1 "Space Grotesk", sans-serif; letter-spacing: -.03em; }
+.pill.new { color: var(--on-signal); background: var(--signal); border-color: var(--signal); cursor: pointer; font-weight: 600; }
+.pill.new:hover { background: #6ff0d8; }
+dd.new { color: var(--signal); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .pill { margin-left: auto; font: 12px "JetBrains Mono", monospace; color: var(--soft); padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
 main { flex: 1; padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
 .status { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
@@ -69,7 +72,7 @@ button.danger:hover { border-color: var(--reject); color: var(--reject); }
     <polygon points="24,8 13,14 13,25 24,19" fill="#33AE99"/>
   </svg>
   <h1>bwsshd</h1>
-  <span class="pill">v{{VERSION}}</span>
+  <span class="pill" id="pill">v{{VERSION}}</span>
 </header>
 <main>
   <div id="status" class="status">
@@ -94,6 +97,7 @@ button.danger:hover { border-color: var(--reject); color: var(--reject); }
     <dt>Version</dt><dd>{{VERSION}}</dd>
     <dt>Commit</dt><dd>{{COMMIT}}</dd>
     <dt>Built from</dt><dd>{{DATE}}</dd>
+    <dt>Latest</dt><dd id="latest">checking</dd>
     <dt>Config</dt><dd id="out" title="{{OUT}}">{{OUT}}</dd>
   </dl>
 </main>
@@ -148,6 +152,17 @@ window.update = (kind, error, msAgo) => {
   if (kind === "paused") document.getElementById("auto-hint").textContent = "Off: Resync now still runs once";
   showEvery();
   render();
+};
+// Called from Rust with the latest release tag (null when the check failed).
+window.showUpdate = (tag, newer) => {
+  const latest = document.getElementById("latest");
+  const pill = document.getElementById("pill");
+  latest.textContent = tag === null ? "check failed" : newer ? tag + " available" : "up to date";
+  latest.className = newer ? "new" : "";
+  pill.className = "pill" + (newer ? " new" : "");
+  pill.textContent = newer ? "Update " + tag : "v{{VERSION}}";
+  pill.title = newer ? "Open the release page" : "";
+  latest.onclick = pill.onclick = newer ? () => ipc.postMessage("release") : null;
 };
 showEvery();
 setInterval(render, 1000);

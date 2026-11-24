@@ -81,6 +81,50 @@ pub fn version_line() -> String {
         .join(" · ")
 }
 
+/// Result of the release check: the latest tag and whether it is newer than
+/// this build. `None` when the check failed.
+pub type Update = Option<(String, bool)>;
+
+/// Checks for a newer release now, then once a day.
+pub fn spawn_update_check(report: impl Fn(Update) + Send + 'static) {
+    std::thread::spawn(move || {
+        loop {
+            let update = crate::update::latest().map(|tag| {
+                let newer = crate::update::is_newer(&tag, VERSION);
+                (tag, newer)
+            });
+            if let Some((tag, true)) = &update {
+                info!("update available: {tag} (running v{VERSION})");
+            }
+            report(update);
+            std::thread::sleep(Duration::from_secs(24 * 3600));
+        }
+    });
+}
+
+/// The menu line for an update check result.
+pub fn update_label(update: &Update) -> String {
+    match update {
+        Some((tag, true)) => format!("Update available: {tag}"),
+        Some(_) => "Up to date".into(),
+        None => "Update check failed".into(),
+    }
+}
+
+/// Opens the release page in the browser.
+pub fn open_releases() {
+    let program = if cfg!(windows) {
+        "explorer.exe"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    if let Err(e) = Command::new(program).arg(crate::update::RELEASES).spawn() {
+        info!("open {}: {e}", crate::update::RELEASES);
+    }
+}
+
 /// Opens the generated config in a text editor.
 pub fn open_config(path: &Path) {
     let mut cmd = if cfg!(windows) {
