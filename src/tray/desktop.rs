@@ -18,8 +18,8 @@ use tray_icon::{Icon, MouseButton, MouseButtonState, Rect, TrayIconBuilder, Tray
 use wry::WebViewBuilder;
 
 use super::{
-    COMMIT, COMMIT_DATE, Control, Notify, PRESETS, Status, VERSION, WAITING, icon_rgba, label,
-    open_config, version_line,
+    COMMIT, COMMIT_DATE, Control, Notify, PRESETS, Status, Update, VERSION, WAITING, icon_rgba,
+    label, open_config, open_releases, spawn_update_check, update_label, version_line,
 };
 
 enum UserEvent {
@@ -27,10 +27,11 @@ enum UserEvent {
     Menu(MenuEvent),
     Tray(TrayIconEvent),
     Panel(String),
+    Update(Update),
 }
 
 const PANEL_W: f64 = 360.0;
-const PANEL_H: f64 = 510.0;
+const PANEL_H: f64 = 536.0;
 
 pub fn run<F>(out: PathBuf, interval: Duration, watch: F) -> Result<(), String>
 where
@@ -59,8 +60,10 @@ where
     let pause = MenuItem::new("Pause auto sync", true, None);
     let open = MenuItem::new("Open generated config", true, None);
     let quit = MenuItem::new("Quit bwsshd", true, None);
+    let update = MenuItem::new("Checking for updates", false, None);
     let menu = Menu::with_items(&[
         &MenuItem::new(format!("bwsshd {}", version_line()), false, None),
+        &update,
         &status,
         &PredefinedMenuItem::separator(),
         &resync,
@@ -116,6 +119,11 @@ where
     );
     let mut tray = None;
     let mut last_script = String::new();
+    let mut update_script = String::new();
+    let proxy = event_loop.create_proxy();
+    spawn_update_check(move |u| {
+        let _ = proxy.send_event(UserEvent::Update(u));
+    });
     // Clicking the icon while the panel is open first blurs it (hiding it);
     // the click that follows must not reopen it.
     let mut hidden_at = Instant::now();
@@ -168,6 +176,7 @@ where
                 } else if hidden_at.elapsed() > Duration::from_millis(300) {
                     place(&window, rect);
                     let _ = webview.evaluate_script(&last_script);
+                    let _ = webview.evaluate_script(&update_script);
                     window.set_visible(true);
                     window.set_focus();
                     #[cfg(windows)]
@@ -204,9 +213,22 @@ where
                     let _ = tx.send(Control::Pause(!paused));
                 } else if e.id == *open.id() {
                     open_config(&out);
+                } else if e.id == *update.id() {
+                    open_releases();
                 } else if e.id == *quit.id() {
                     quit_now();
                 }
+            }
+            Event::UserEvent(UserEvent::Update(u)) => {
+                update.set_text(update_label(&u));
+                update.set_enabled(matches!(u, Some((_, true))));
+                update_script = match &u {
+                    Some((tag, newer)) => {
+                        format!("window.showUpdate && showUpdate({tag:?}, {newer})")
+                    }
+                    None => "window.showUpdate && showUpdate(null, false)".into(),
+                };
+                let _ = webview.evaluate_script(&update_script);
             }
             Event::UserEvent(UserEvent::Panel(msg)) => match msg.as_str() {
                 "resync" => {
@@ -224,6 +246,10 @@ where
                 }
                 "hide" => window.set_visible(false),
                 "quit" => quit_now(),
+                "release" => {
+                    window.set_visible(false);
+                    open_releases();
+                }
                 // The page is local, but it is still input: only presets pass.
                 m => {
                     if let Some(s) = m

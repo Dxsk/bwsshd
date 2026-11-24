@@ -10,13 +10,15 @@ use ksni::menu::{RadioGroup, RadioItem, StandardItem, SubMenu};
 use ksni::{Icon, MenuItem};
 
 use super::{
-    Control, Notify, PRESETS, Status, WAITING, every, icon_rgba, label, open_config, version_line,
+    Control, Notify, PRESETS, Status, Update, WAITING, every, icon_rgba, label, open_config,
+    open_releases, spawn_update_check, update_label, version_line,
 };
 
 struct Tray {
     status: String,
     paused: bool,
     interval: u64,
+    update: Option<Update>,
     control: Sender<Control>,
     out: PathBuf,
 }
@@ -57,6 +59,16 @@ impl ksni::Tray for Tray {
             StandardItem {
                 label: format!("bwsshd {}", version_line()),
                 enabled: false,
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: self
+                    .update
+                    .as_ref()
+                    .map_or("Checking for updates".into(), update_label),
+                enabled: matches!(self.update, Some(Some((_, true)))),
+                activate: Box::new(|_: &mut Self| open_releases()),
                 ..Default::default()
             }
             .into(),
@@ -143,6 +155,7 @@ where
         status: WAITING.into(),
         paused: false,
         interval: interval.as_secs(),
+        update: None,
         control: tx,
         out,
     };
@@ -151,6 +164,10 @@ where
         .assume_sni_available(true)
         .spawn()
         .map_err(|e| format!("tray: {e}"))?;
+    let h = handle.clone();
+    spawn_update_check(move |u| {
+        h.update(|t| t.update = Some(u));
+    });
     watch(
         rx,
         Box::new(move |s| {

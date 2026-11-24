@@ -225,7 +225,9 @@ last read the agent, and can resync now, pause auto sync, open the generated
 config in a text editor, or quit. On Windows and macOS a left click opens a
 small panel with the version, commit, build date and sync status, an auto sync
 switch and the sync interval (5s to 5m). Both choices are kept across restarts
-and override `--interval`:
+and override `--interval`. In tray mode bwsshd also checks GitHub for a newer
+release at start and once a day (through `curl`), and points to it when there
+is one:
 
 ```sh
 bwsshd --watch --tray
