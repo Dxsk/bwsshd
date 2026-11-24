@@ -1,0 +1,42 @@
+[package]
+name = "bwsshd"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Keep your ssh_config in sync with the SSH keys stored in your Bitwarden vault"
+license = "MIT"
+repository = "https://github.com/Dxsk/bwsshd"
+readme = "README.md"
+keywords = ["ssh", "bitwarden", "ssh-agent", "ssh-config"]
+categories = ["command-line-utilities"]
+exclude = ["site/", "dist/", ".github/"]
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+humantime = "2"
+sha2 = "0.10"
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+tao = "0.37.3"
+tray-icon = "0.24.2"
+wry = "0.57.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3.7", features = ["blocking"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
+
+[target."cfg(windows)".dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Pipes", "Win32_System_IO"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"

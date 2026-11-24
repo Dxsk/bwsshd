@@ -1,0 +1,6 @@
+---
+import { docsInOrder } from "../../docs";
+
+const [first] = await docsInOrder();
+return Astro.redirect(`/docs/${first.id}/`);
+---

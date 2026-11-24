@@ -3,7 +3,7 @@ Description=bwsshd - keep ssh_config in sync with the Bitwarden SSH agent
 After=default.target
 
 [Service]
-ExecStart=%h/.local/bin/bwsshd -watch
+ExecStart=%h/.local/bin/bwsshd --watch
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

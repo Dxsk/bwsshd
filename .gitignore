@@ -4,24 +4,13 @@
 *.so
 *.dylib
 
-# Test binary, built with `go test -c`
-*.test
+# Rust build output
+/target/
+**/*.rs.bk
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# Go workspace file
-go.work
-go.work.sum
-
-# Dependency directories
-vendor/
-
-# Go build artifacts
+# Local and release build artifacts
 /dist/*
 !/dist/.gitkeep
-/bin/
-# goreleaser output dir
 /build/
 
 # IDE
@@ -116,9 +105,6 @@ secrets/
 *.key
 *.pem
 credentials.json
-
-# Stray root binary from `go build .`
-bwsshd
 
 # Local end-to-end verification scratch dir
 /.e2e/
