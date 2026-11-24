@@ -8,7 +8,6 @@ endif
 
 BIN := dist/bwsshd$(EXE)
 PREFIX := $(HOME)/.local
-UNITDIR := $(HOME)/.config/systemd/user
 
 .PHONY: build test lint run clean install uninstall
 
@@ -31,15 +30,11 @@ clean:
 	cargo clean
 	rm -f $(BIN)
 
-# install / uninstall are Linux-only: they wire up the systemd --user service.
+# Copies the binary to $(PREFIX)/bin and starts it at login (see `bwsshd install`).
 install: build
-	install -Dm755 $(BIN) $(PREFIX)/bin/bwsshd
-	install -Dm644 systemd/bwsshd.service $(UNITDIR)/bwsshd.service
-	systemctl --user daemon-reload
-	systemctl --user enable --now bwsshd.service
-	@echo "logs: journalctl --user -u bwsshd -f"
+	install -Dm755 $(BIN) $(PREFIX)/bin/bwsshd$(EXE)
+	$(PREFIX)/bin/bwsshd$(EXE) install
 
 uninstall:
-	-systemctl --user disable --now bwsshd.service
-	rm -f $(PREFIX)/bin/bwsshd $(UNITDIR)/bwsshd.service
-	systemctl --user daemon-reload
+	-$(PREFIX)/bin/bwsshd$(EXE) uninstall
+	rm -f $(PREFIX)/bin/bwsshd$(EXE)

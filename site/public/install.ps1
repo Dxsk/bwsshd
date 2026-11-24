@@ -1,9 +1,9 @@
 # bwsshd installer for Windows.
 #
 # Downloads the latest release for this machine, checks it against the
-# published checksums, then runs the install.ps1 bundled in the archive: it
-# copies bwsshd.exe to %LOCALAPPDATA%\Programs\bwsshd and registers the
-# per-user logon task. No administrator rights needed.
+# published checksums, copies bwsshd.exe to %LOCALAPPDATA%\Programs\bwsshd and
+# runs `bwsshd install`, which registers the per-user logon task. No
+# administrator rights needed.
 #
 #   irm https://bwsshd.example/install.ps1 | iex
 
@@ -40,14 +40,24 @@ try {
 
     $dir = Join-Path $tmp 'x'
     Expand-Archive $zip -DestinationPath $dir
-    $installer = Get-ChildItem $dir -Recurse -Filter install.ps1 | Select-Object -First 1
-    if (-not $installer) { throw "bwsshd: the archive has no install.ps1" }
+    $exe = Get-ChildItem $dir -Recurse -Filter bwsshd.exe | Select-Object -First 1
+    if (-not $exe) { throw "bwsshd: the archive has no bwsshd.exe" }
 
-    # Run it in a child process: a script file is subject to the execution
-    # policy, unlike this piped one, and Restricted is the client default.
-    $shell = (Get-Process -Id $PID).Path
-    & $shell -NoProfile -ExecutionPolicy Bypass -File $installer.FullName
-    if ($LASTEXITCODE) { throw "bwsshd: install.ps1 failed with exit code $LASTEXITCODE" }
+    $installDir = Join-Path $env:LOCALAPPDATA 'Programs\bwsshd'
+    $target = Join-Path $installDir 'bwsshd.exe'
+    New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+    # The running daemon locks its exe. Older installs started it through a
+    # wscript launcher, so ending the task alone may leave it running.
+    # Windows PowerShell turns redirected stderr into a terminating error here.
+    try { schtasks /End /TN bwsshd 2>&1 | Out-Null } catch {}
+    Get-Process bwsshd -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $target } | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+    Copy-Item $exe.FullName $target -Force
+    Remove-Item (Join-Path $installDir 'bwsshd-launch.vbs') -ErrorAction SilentlyContinue
+    Write-Host "bwsshd: installed $(& $target --version) to $target"
+
+    & $target install
+    if ($LASTEXITCODE) { throw "bwsshd: install failed with exit code $LASTEXITCODE" }
 }
 finally {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue

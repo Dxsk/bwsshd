@@ -46,11 +46,30 @@ jobs:
           kill -0 "$pid" # still running: the icon and its event loop came up
           kill "$pid"
           grep -q "watching for the Bitwarden agent" "$d/log"
-      - name: Lint the LaunchAgent written by install.sh
+      # The real thing, on a throwaway runner: the LaunchAgent loads, then goes.
+      - name: Install and uninstall the LaunchAgent
         if: runner.os == 'macOS'
         run: |
-          awk '/cat >"\$plist" <<EOF/ {f=1; next} /^EOF$/ {f=0} f' site/public/install.sh |
-            sed -e 's|\$label|fr.infrasouveraine.bwsshd|' -e 's|\$BIN_DIR|/usr/local/bin|' \
-              -e 's|\$log|/tmp/bwsshd.log|' >"$RUNNER_TEMP/agent.plist"
-          cat "$RUNNER_TEMP/agent.plist"
-          plutil -lint "$RUNNER_TEMP/agent.plist"
+          d=$(mktemp -d)
+          ./target/debug/bwsshd install --out "$d/config.bw" --keydir "$d/keys" --ssh-config "$d/config"
+          plutil -lint ~/Library/LaunchAgents/fr.infrasouveraine.bwsshd.plist
+          launchctl print "gui/$(id -u)/fr.infrasouveraine.bwsshd" | head -n 20
+          ./target/debug/bwsshd uninstall
+          ! launchctl print "gui/$(id -u)/fr.infrasouveraine.bwsshd" 2>/dev/null
+      # Same for the MSI: it installs per user, registers the logon task, and
+      # uninstalling removes both.
+      - name: MSI install and uninstall
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cargo build --release --locked
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add --global WixToolset.Util.wixext/5.0.2
+          wix build packaging/windows/bwsshd.wxs -arch x64 -ext WixToolset.Util.wixext \
+            -d Version=0.0.1 -d Bin=target/release/bwsshd.exe -o bwsshd.msi
+          msiexec //i bwsshd.msi //qn //l*v install.log || { cat install.log; exit 1; }
+          test -f "$LOCALAPPDATA/Programs/bwsshd/bwsshd.exe"
+          schtasks //Query //TN bwsshd //V //FO LIST
+          msiexec //x bwsshd.msi //qn //l*v uninstall.log || { cat uninstall.log; exit 1; }
+          ! test -e "$LOCALAPPDATA/Programs/bwsshd/bwsshd.exe"
+          ! schtasks //Query //TN bwsshd

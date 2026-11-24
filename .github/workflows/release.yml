@@ -59,15 +59,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }}
-      # Same layout as the Go releases: binary, Makefile + systemd unit
-      # (Linux helpers), Windows install scripts, README and LICENSE, flat at
-      # the archive root. Windows users get a .zip, everyone else a tarball.
+      # Binary, README and LICENSE, flat at the archive root; `bwsshd install`
+      # sets up the login service. Windows gets a .zip, everyone else a tarball.
       - name: Package
         run: |
           ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
           mkdir -p "pkg/$NAME"
           cp "target/${{ matrix.target }}/release/bwsshd$ext" "pkg/$NAME/"
-          cp packaging/Makefile systemd/bwsshd.service packaging/windows/*.ps1 README.md LICENSE "pkg/$NAME/"
+          cp README.md LICENSE "pkg/$NAME/"
           cd "pkg/$NAME"
           if [ "${{ matrix.os }}" = windows ]; then
             7z a -tzip "../../$NAME.zip" * > /dev/null
@@ -76,8 +75,17 @@ jobs:
             tar -czf "../../$NAME.tar.gz" *
             echo "ASSET=$NAME.tar.gz" >> "$GITHUB_ENV"
           fi
+      - name: Build the MSI
+        if: matrix.os == 'windows'
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add --global WixToolset.Util.wixext/5.0.2
+          wix build packaging/windows/bwsshd.wxs -arch ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }} \
+            -ext WixToolset.Util.wixext -d "Version=${{ needs.release-please.outputs.version }}" \
+            -d "Bin=target/${{ matrix.target }}/release/bwsshd.exe" -o "$NAME.msi"
+          echo "MSI=$NAME.msi" >> "$GITHUB_ENV"
       - name: Upload
-        run: gh release upload "$TAG" "$ASSET" --clobber
+        run: gh release upload "$TAG" "$ASSET" ${MSI:-} --clobber
 
   checksums:
     needs: [release-please, build]

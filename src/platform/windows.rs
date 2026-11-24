@@ -67,6 +67,19 @@ pub fn format_include(ssh_config_dir: &Path, out: &Path) -> String {
     }
 }
 
+/// Started from Explorer or Task Scheduler, a console app gets a console
+/// window of its own; the tray does not need it. A shell's console is shared
+/// with the shell, so it stays.
+pub fn hide_own_console() {
+    use windows_sys::Win32::System::Console::{FreeConsole, GetConsoleProcessList};
+    let mut ids = [0u32; 2];
+    // SAFETY: the buffer holds the 2 entries it is declared with.
+    if unsafe { GetConsoleProcessList(ids.as_mut_ptr(), 2) } == 1 {
+        // SAFETY: no preconditions; logs then go to --logfile or nowhere.
+        unsafe { FreeConsole() };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

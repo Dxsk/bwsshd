@@ -9,7 +9,7 @@ repository = "https://github.com/Dxsk/bwsshd"
 readme = "README.md"
 keywords = ["ssh", "bitwarden", "ssh-agent", "ssh-config"]
 categories = ["command-line-utilities"]
-exclude = ["site/", "dist/", ".github/"]
+include = ["/src", "/tests", "/assets", "/build.rs", "/README.md", "/LICENSE", "/CHANGELOG.md"]
 
 [dependencies]
 base64 = "0.22"
@@ -30,7 +30,7 @@ wry = "0.57.3"
 ksni = { version = "0.3.7", features = ["blocking"] }
 
 [target."cfg(windows)".dependencies]
-windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_System_Console", "Win32_UI_WindowsAndMessaging"] }
 
 [target."cfg(windows)".dev-dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Pipes", "Win32_System_IO"] }

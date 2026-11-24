@@ -9,6 +9,14 @@ order: 1
 bwsshd --watch --interval 30s
 ```
 
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `bwsshd` | Sync once and exit. |
+| `bwsshd install` | Start bwsshd at login with the flags given (see [Run at login](/docs/run-at-login/)). |
+| `bwsshd uninstall` | Remove what `install` set up. The binary stays. |
+
 ## All flags
 
 | Flag | Default | Description |
@@ -20,7 +28,7 @@ bwsshd --watch --interval 30s
 | `--watch` | off | Keep running and regenerate on every key change. |
 | `--tray` | off | Show a tray icon: last sync, *Resync now*, *Open generated config*, *Quit*. Implies `--watch`. |
 | `--interval` | `10s` | Poll interval in watch mode (`30s`, `1m`, ...). |
-| `--logfile` | stderr | Append logs to a file, for the hidden Windows task. |
+| `--logfile` | stderr | Append logs to a file. `install` sets one on Windows and macOS. |
 | `--version` | | Print the version and exit. |
 
 The single-dash spellings of the 0.x releases (`-watch`, `-interval 5s`, ...) are still accepted, so existing service files keep working after an upgrade.

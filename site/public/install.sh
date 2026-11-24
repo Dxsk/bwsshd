@@ -2,8 +2,9 @@
 # bwsshd installer for Linux and macOS.
 #
 # Downloads the latest release for this machine, checks it against the
-# published checksums, installs the binary into ~/.local/bin and sets it up to
-# run at login (systemd user service on Linux, LaunchAgent on macOS).
+# published checksums, installs the binary into ~/.local/bin and runs
+# `bwsshd install` to start it at login (systemd user service on Linux,
+# LaunchAgent on macOS).
 #
 #   BWSSHD_BIN_DIR=/path     install the binary somewhere else
 #   BWSSHD_NO_SERVICE=1      only install the binary
@@ -78,62 +79,8 @@ case ":$PATH:" in
 esac
 
 if [ -n "${BWSSHD_NO_SERVICE:-}" ]; then
-    say "skipping the login service (BWSSHD_NO_SERVICE is set); run: bwsshd --watch"
+    say "skipping the login service (BWSSHD_NO_SERVICE is set); run: bwsshd install"
     exit 0
 fi
 
-if [ "$os" = linux ]; then
-    if ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then
-        say "no systemd user session; start it yourself with: bwsshd --watch"
-        exit 0
-    fi
-    unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-    mkdir -p "$unit_dir"
-    cat >"$unit_dir/bwsshd.service" <<EOF
-[Unit]
-Description=bwsshd - keep ssh_config in sync with the Bitwarden SSH agent
-After=default.target
-
-[Service]
-ExecStart=$BIN_DIR/bwsshd --watch
-Restart=on-failure
-RestartSec=5
-NoNewPrivileges=true
-UMask=0077
-
-[Install]
-WantedBy=default.target
-EOF
-    systemctl --user daemon-reload
-    systemctl --user enable bwsshd.service >/dev/null 2>&1
-    systemctl --user restart bwsshd.service
-    say "running as a systemd user service; logs: journalctl --user -u bwsshd -f"
-else
-    label="fr.infrasouveraine.bwsshd"
-    plist="$HOME/Library/LaunchAgents/$label.plist"
-    log="$HOME/Library/Logs/bwsshd.log"
-    mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
-    cat >"$plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key><string>$label</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$BIN_DIR/bwsshd</string>
-        <string>--watch</string>
-        <string>--tray</string>
-        <string>--logfile</string>
-        <string>$log</string>
-    </array>
-    <key>RunAtLoad</key><true/>
-    <!-- Restart on crash, but not after Quit from the menu bar icon. -->
-    <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
-</dict>
-</plist>
-EOF
-    launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1 || true
-    launchctl bootstrap "gui/$(id -u)" "$plist"
-    say "running as a LaunchAgent; logs: tail -f $log"
-fi
+"$BIN_DIR/bwsshd" install || say "start it yourself with: bwsshd --watch"

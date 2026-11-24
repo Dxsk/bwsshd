@@ -166,13 +166,16 @@ Add `[nobwsshd]` anywhere in the name to make bwsshd skip a key entirely.
 <br>
 
 Grab a prebuilt binary from the [releases](https://github.com/Dxsk/bwsshd/releases):
-`.tar.gz` for Linux (static, any distro) and macOS, `.zip` for Windows, each for
-`amd64` and `arm64`.
+`.tar.gz` for Linux (static, any distro) and macOS, `.zip` or `.msi` for
+Windows, each for `amd64` and `arm64`. The `.msi` installs for your account
+only and starts bwsshd at login; it is not code-signed yet, so SmartScreen may
+ask you to confirm.
 
-Or install with Cargo:
+Or install with Cargo, then start it at login:
 
 ```sh
 cargo install bwsshd
+bwsshd install
 ```
 
 Or build from source into `dist/`:
@@ -224,7 +227,7 @@ system tray (Linux). Its right-click menu shows the version and when bwsshd
 last read the agent, and can resync now, pause auto sync, open the generated
 config in a text editor, or quit. On Windows and macOS a left click opens a
 small panel with the version, commit, build date and sync status, an auto sync
-switch and the sync interval (5s to 5m). Both choices are kept across restarts
+switch, the sync interval (5s to 5m) and a link to this repository. Both choices are kept across restarts
 and override `--interval`. In tray mode bwsshd also checks GitHub for a newer
 release at start and once a day (through `curl`), and points to it when there
 is one:
@@ -236,80 +239,29 @@ bwsshd --watch --tray
 On Linux the icon uses StatusNotifierItem: KDE shows it out of the box, GNOME
 needs the AppIndicator extension.
 
-**Run at login (systemd user service)**
+**Run at login**
 
 ```sh
-make install
+bwsshd install
 ```
 
-This builds a stripped static binary into `~/.local/bin`, installs the user
-service, and enables it. The service runs headless; on a desktop, add the icon
-with `systemctl --user edit bwsshd` and an `ExecStart=` override ending in
-`--watch --tray`.
+This starts the binary you ran it with at every login, as you, with no admin
+rights: a systemd user service on Linux (headless), a LaunchAgent on macOS and
+a logon task on Windows (both with the icon). Flags given to `install` go into
+the service, paths made absolute, e.g. `bwsshd install --interval 30s`, or
+`bwsshd install --tray` for the icon on a Linux desktop. `bwsshd uninstall`
+removes it and leaves the binary.
 
-Follow the logs with:
+A Windows *service* would be the wrong tool: it runs at boot as `LocalSystem`
+in session 0, where it sees neither your Bitwarden pipe nor your `~/.ssh`. The
+logon task runs in your session and restarts bwsshd if it crashes.
+
+Logs:
 
 ```sh
-journalctl --user -u bwsshd -f
-```
-
-**Run at login (Windows)**
-
-There is no systemd on Windows, and a classic Windows *service* is the wrong
-tool here: it runs at boot as `LocalSystem` in session 0, where it would see
-neither your per-session Bitwarden agent pipe nor your `~/.ssh`. The correct
-equivalent of the Linux `systemctl --user` service is a **per-user Scheduled
-Task at logon**, which the bundled script sets up for you (no admin needed):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\packaging\windows\install.ps1
-```
-
-It registers a task named `bwsshd` that runs `bwsshd --watch --tray` at logon, in your
-session, **hidden** (no console window), and restarts it if it crashes. Logs go
-to `%LOCALAPPDATA%\bwsshd\bwsshd.log`:
-
-```powershell
-Get-Content -Wait "$env:LOCALAPPDATA\bwsshd\bwsshd.log"
-```
-
-Remove it with:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\packaging\windows\uninstall.ps1
-```
-
-**Run at login (macOS)**
-
-A per-user LaunchAgent does the job. Save this as
-`~/Library/LaunchAgents/fr.infrasouveraine.bwsshd.plist`, adjusting the binary
-path and your home directory:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key><string>fr.infrasouveraine.bwsshd</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/bwsshd</string>
-        <string>--watch</string>
-        <string>--tray</string>
-        <string>--logfile</string>
-        <string>/Users/you/Library/Logs/bwsshd.log</string>
-    </array>
-    <key>RunAtLoad</key><true/>
-    <!-- Restart on crash, but not after Quit from the menu bar icon. -->
-    <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
-</dict>
-</plist>
-```
-
-Then load it:
-
-```sh
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/fr.infrasouveraine.bwsshd.plist
+journalctl --user -u bwsshd -f                        # Linux
+tail -f ~/Library/Logs/bwsshd.log                     # macOS
+Get-Content -Wait "$env:LOCALAPPDATA\bwsshd\bwsshd.log"  # Windows
 ```
 
 The daemon polls the agent and rewrites the config only when the key set
@@ -325,6 +277,12 @@ generated config and removes its key directory until the app comes back.
 
 <br>
 
+| Command | Description |
+|---------|-------------|
+| `bwsshd` | Sync once and exit |
+| `bwsshd install` | Start bwsshd at login with the flags given |
+| `bwsshd uninstall` | Remove what `install` set up (the binary stays) |
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--sock` | auto-discover | SSH agent endpoint; empty auto-discovers the Bitwarden socket (Linux, macOS) or named pipe (Windows) |
@@ -334,7 +292,7 @@ generated config and removes its key directory until the app comes back.
 | `--watch` | off | Loop instead of a single run |
 | `--tray` | off | Show a tray icon with the last sync, *Resync now*, *Open generated config* and *Quit* (implies `--watch`) |
 | `--interval` | `10s` | Poll interval in watch mode (`30s`, `1m`, ...) |
-| `--logfile` | stderr | Append logs to this file (used by the Windows scheduled task, which has no console) |
+| `--logfile` | stderr | Append logs to this file (`install` sets one on Windows and macOS) |
 | `--version` | | Print the version and exit |
 
 Auto-discovery also honors `BW_SSH_SOCK` and `BITWARDEN_SSH_AUTH_SOCK` if set.

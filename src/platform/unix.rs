@@ -59,6 +59,9 @@ pub fn format_include(_ssh_config_dir: &Path, out: &Path) -> String {
         .into_owned()
 }
 
+/// Only Windows opens a console window for a background process.
+pub fn hide_own_console() {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

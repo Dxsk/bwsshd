@@ -13,7 +13,7 @@ On Linux and macOS:
 curl -fsSL https://bwsshd.example/install.sh | sh
 ```
 
-The script downloads the latest release for your platform into `~/.local/bin`, then sets bwsshd up to run at login: a systemd user service on Linux, a LaunchAgent on macOS. Set `BWSSHD_NO_SERVICE=1` to only install the binary, or `BWSSHD_BIN_DIR` to pick another folder.
+The script downloads the latest release for your platform into `~/.local/bin`, then runs [`bwsshd install`](/docs/run-at-login/) to start it at login: a systemd user service on Linux, a LaunchAgent on macOS. Set `BWSSHD_NO_SERVICE=1` to only install the binary, or `BWSSHD_BIN_DIR` to pick another folder.
 
 On Windows, in PowerShell:
 
@@ -21,7 +21,13 @@ On Windows, in PowerShell:
 irm https://bwsshd.example/install.ps1 | iex
 ```
 
-It downloads the latest release and runs the bundled `install.ps1`, which copies `bwsshd.exe` to `%LOCALAPPDATA%\Programs\bwsshd` and registers the logon task. No administrator rights are needed.
+It downloads the latest release, copies `bwsshd.exe` to `%LOCALAPPDATA%\Programs\bwsshd` and runs `bwsshd install`, which registers the logon task. No administrator rights are needed.
+
+## Windows installer
+
+Prefer a regular setup? Each release has a `.msi` for `amd64` and `arm64`. It installs for your account only (no administrator rights), registers the logon task and starts bwsshd. Remove it from **Settings > Apps** like any other program.
+
+> The `.msi` is not code-signed yet, so SmartScreen may warn on first run: **More info**, then **Run anyway**.
 
 > Prefer reading a script before piping it to a shell? Open [install.sh](/install.sh) or [install.ps1](/install.ps1) first, they are short.
 
@@ -33,15 +39,18 @@ Every [release](https://github.com/Dxsk/bwsshd/releases) ships one archive per p
 |----------|---------|
 | Linux (static, any distro) | `bwsshd_<version>_linux_<arch>.tar.gz` |
 | macOS | `bwsshd_<version>_darwin_<arch>.tar.gz` |
-| Windows | `bwsshd_<version>_windows_<arch>.zip` |
+| Windows | `bwsshd_<version>_windows_<arch>.zip` or `.msi` |
 
-`checksums.txt` lists their SHA-256 sums. Each archive holds the binary plus the service helpers: a `Makefile` and systemd unit for Linux, `install.ps1` and `uninstall.ps1` for Windows.
+`checksums.txt` lists their SHA-256 sums. Each archive holds the binary, the README and the license; run `bwsshd install` from where you put the binary to start it at login.
 
 ## With Cargo
 
 ```sh
 cargo install bwsshd
+bwsshd install
 ```
+
+The second line starts it at login, from `~/.cargo/bin`.
 
 ## From source
 

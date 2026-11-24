@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 use crate::config::{create_private_dir, ensure_include};
-use crate::platform::check_not_root;
+use crate::platform::{check_not_root, clean_abs};
+use crate::service;
 use crate::settings::{self, Settings};
 use crate::sync::{STATE_ABSENT, candidate_socks, sync};
 use crate::tray::{self, Control, Status};
@@ -18,20 +19,23 @@ use crate::tray::{self, Control, Status};
 #[derive(Debug, Parser)]
 #[command(name = "bwsshd", disable_version_flag = true)]
 pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Cmd>,
+
     /// SSH agent endpoint; empty auto-discovers the Bitwarden socket or pipe
-    #[arg(long, value_name = "PATH")]
+    #[arg(long, global = true, value_name = "PATH")]
     pub sock: Option<String>,
 
     /// Generated ssh_config file [default: ~/.ssh/config.automatic.bw]
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, global = true, value_name = "FILE")]
     pub out: Option<PathBuf>,
 
     /// Where public keys are written [default: ~/.ssh/bwsshd-keys]
-    #[arg(long, value_name = "DIR")]
+    #[arg(long, global = true, value_name = "DIR")]
     pub keydir: Option<PathBuf>,
 
     /// ssh_config to add the Include line to [default: ~/.ssh/config]
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, global = true, value_name = "FILE")]
     pub ssh_config: Option<PathBuf>,
 
     /// Loop instead of a single run
@@ -40,21 +44,30 @@ pub struct Cli {
 
     /// Show an icon in the notification area (implies --watch): last sync,
     /// resync now, quit
-    #[arg(long)]
+    #[arg(long, global = true)]
     pub tray: bool,
 
     /// Poll interval in watch mode (e.g. 10s, 1m)
-    #[arg(long, value_name = "DURATION", default_value = "10s", value_parser = parse_interval)]
+    #[arg(long, global = true, value_name = "DURATION", default_value = "10s", value_parser = parse_interval)]
     pub interval: Duration,
 
     /// Append logs to this file instead of stderr (used by the Windows scheduled
     /// task, which has no console)
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, global = true, value_name = "FILE")]
     pub logfile: Option<PathBuf>,
 
     /// Print version and exit
     #[arg(long, short = 'V')]
     pub version: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Cmd {
+    /// Start bwsshd at login with the flags given here (with --tray on
+    /// Windows and macOS): systemd user service, LaunchAgent or logon task
+    Install,
+    /// Remove what `install` set up (the binary stays)
+    Uninstall,
 }
 
 /// Long flags, as accepted with a single dash by the Go releases.
@@ -125,6 +138,22 @@ pub fn run() -> i32 {
 
 fn run_with(cli: Cli) -> Result<(), String> {
     let home = home_dir()?;
+    match cli.command {
+        Some(Cmd::Install) => {
+            check_not_root()?;
+            let exe = std::env::current_exe().map_err(|e| format!("own path: {e}"))?;
+            println!(
+                "{}",
+                service::install(&exe, &service_args(&cli, &home)?, &home)?
+            );
+            return Ok(());
+        }
+        Some(Cmd::Uninstall) => {
+            println!("{}", service::uninstall(&home)?);
+            return Ok(());
+        }
+        None => {}
+    }
     let ssh_dir = home.join(".ssh");
     let out = cli
         .out
@@ -136,6 +165,9 @@ fn run_with(cli: Cli) -> Result<(), String> {
     // stderr goes nowhere; --logfile keeps a journal instead.
     if let Some(path) = &cli.logfile {
         open_logfile(path)?;
+    }
+    if cli.tray {
+        crate::platform::hide_own_console();
     }
 
     // Running as root would write keys and config owned by root in the user's
@@ -281,6 +313,37 @@ fn tick(
     }
 }
 
+/// The flags `install` writes into the service: the ones given, with paths
+/// made absolute, plus the tray and a log file where the platform needs them.
+fn service_args(cli: &Cli, home: &Path) -> Result<Vec<String>, String> {
+    let mut args = vec!["--watch".to_string()];
+    if cli.tray || !cfg!(target_os = "linux") {
+        args.push("--tray".into());
+    }
+    if cli.interval != Duration::from_secs(10) {
+        args.push("--interval".into());
+        args.push(humantime::format_duration(cli.interval).to_string());
+    }
+    if let Some(sock) = &cli.sock {
+        args.push("--sock".into());
+        args.push(sock.clone());
+    }
+    let logfile = cli.logfile.clone().or_else(|| service::default_log(home));
+    for (flag, path) in [
+        ("--out", &cli.out),
+        ("--keydir", &cli.keydir),
+        ("--ssh-config", &cli.ssh_config),
+        ("--logfile", &logfile),
+    ] {
+        if let Some(p) = path {
+            let p = clean_abs(p).map_err(|e| format!("{}: {e}", p.display()))?;
+            args.push(flag.into());
+            args.push(p.to_string_lossy().into_owned());
+        }
+    }
+    Ok(args)
+}
+
 fn open_logfile(path: &Path) -> Result<(), String> {
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         create_private_dir(dir)?;
@@ -423,6 +486,25 @@ mod tests {
 
     fn fs_has(path: &Path, needle: &str) -> bool {
         std::fs::read_to_string(path).is_ok_and(|s| s.contains(needle))
+    }
+
+    #[test]
+    fn install_keeps_the_flags_given() {
+        let cli = parse(&["bwsshd", "install", "--interval", "30s", "--out", "/x/c.bw"]);
+        assert!(matches!(cli.command, Some(Cmd::Install)));
+        let home = Path::new("/home/me");
+        let got = service_args(&cli, home).unwrap();
+        let out = clean_abs(Path::new("/x/c.bw"))
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let mut want = vec!["--watch"];
+        if !cfg!(target_os = "linux") {
+            want.push("--tray");
+        }
+        want.extend(["--interval", "30s", "--out", &out]);
+        assert_eq!(got[..want.len()], want);
+        assert_eq!(got.len() > want.len(), service::default_log(home).is_some());
     }
 
     #[test]
