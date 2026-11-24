@@ -221,9 +221,10 @@ bwsshd --watch
 
 Add an icon to the notification area (Windows), the menu bar (macOS) or the
 system tray (Linux). Its right-click menu shows the version and when bwsshd
-last read the agent, and can resync now, open the generated config in a text
-editor, or quit. On Windows and macOS a left click opens a small panel with
-the version, commit, build date and sync status:
+last read the agent, and can resync now, pause auto sync, open the generated
+config in a text editor, or quit. On Windows and macOS a left click opens a
+small panel with the version, commit, build date and sync status, an auto sync
+switch and the sync interval (5s to 5m, until bwsshd restarts):
 
 ```sh
 bwsshd --watch --tray

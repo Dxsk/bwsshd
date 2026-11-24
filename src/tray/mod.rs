@@ -1,5 +1,5 @@
 //! Notification area icon (`--tray`): shows when the agent was last read,
-//! forces a resync, quits. Windows and macOS go through tray-icon; Linux talks
+//! forces a resync, pauses auto sync, quits. Windows and macOS go through tray-icon; Linux talks
 //! StatusNotifierItem over D-Bus with ksni, which keeps the musl build static.
 
 use std::path::{Path, PathBuf};
@@ -22,24 +22,45 @@ pub enum Status {
     /// the time of the last successful sync.
     Absent(Option<Instant>),
     Failed(String),
+    /// Auto sync is paused, with the time of the last successful sync.
+    Paused(Option<Instant>),
+}
+
+/// What the icon asks of the watch loop.
+pub enum Control {
+    Resync,
+    Pause(bool),
+    Interval(Duration),
+}
+
+/// Intervals offered by the panel and the Linux menu, in seconds.
+pub const PRESETS: [u64; 5] = [5, 10, 30, 60, 300];
+
+/// `30s`, `1m`, `5m`.
+pub fn every(secs: u64) -> String {
+    if secs.is_multiple_of(60) {
+        format!("{}m", secs / 60)
+    } else {
+        format!("{secs}s")
+    }
 }
 
 pub type Notify = Box<dyn Fn(Status) + Send>;
 
-/// Shows the icon and runs `watch` with a resync trigger and a status sink.
+/// Shows the icon and runs `watch` with a control channel and a status sink.
 /// Never returns unless the icon cannot be created.
 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
-pub fn run<F>(out: PathBuf, watch: F) -> Result<(), String>
+pub fn run<F>(out: PathBuf, interval: Duration, watch: F) -> Result<(), String>
 where
-    F: FnOnce(Receiver<()>, Notify) + Send + 'static,
+    F: FnOnce(Receiver<Control>, Notify) + Send + 'static,
 {
-    imp::run(out, watch)
+    imp::run(out, interval, watch)
 }
 
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
-pub fn run<F>(_out: PathBuf, _watch: F) -> Result<(), String>
+pub fn run<F>(_out: PathBuf, _interval: Duration, _watch: F) -> Result<(), String>
 where
-    F: FnOnce(Receiver<()>, Notify) + Send + 'static,
+    F: FnOnce(Receiver<Control>, Notify) + Send + 'static,
 {
     Err("--tray is not supported on this platform".into())
 }
@@ -85,6 +106,8 @@ pub fn label(status: &Status, now: Instant) -> String {
         }
         Status::Absent(None) => "Bitwarden agent not reachable".into(),
         Status::Failed(e) => format!("Sync failed: {e}"),
+        Status::Paused(Some(t)) => format!("Auto sync paused, last sync {}", ago(now - *t)),
+        Status::Paused(None) => "Auto sync paused".into(),
     }
 }
 
@@ -98,11 +121,14 @@ fn ago(d: Duration) -> String {
     format!("{} ago", humantime::format_duration(Duration::from_secs(s)))
 }
 
-/// The site logo, an isometric cube in three teal tones, as RGBA.
-pub fn icon_rgba(size: u32) -> Vec<u8> {
-    const TOP: [u8; 3] = [0x4f, 0xe3, 0xc8];
-    const LEFT: [u8; 3] = [0x25, 0x8c, 0x7b];
-    const RIGHT: [u8; 3] = [0x33, 0xae, 0x99];
+/// The site logo, an isometric cube in three teal tones (greys while auto
+/// sync is paused), as RGBA.
+pub fn icon_rgba(size: u32, paused: bool) -> Vec<u8> {
+    let [top, left, right]: [[u8; 3]; 3] = if paused {
+        [[0xa3, 0xac, 0xc2], [0x5b, 0x64, 0x80], [0x7d, 0x87, 0xa3]]
+    } else {
+        [[0x4f, 0xe3, 0xc8], [0x25, 0x8c, 0x7b], [0x33, 0xae, 0x99]]
+    };
     let c = size as f32 / 2.0;
     let r = c - 1.0;
     let half_w = r * 3f32.sqrt() / 2.0;
@@ -114,11 +140,11 @@ pub fn icon_rgba(size: u32) -> Vec<u8> {
             // Pointy-top hexagon split into the three visible faces.
             let inside = x.abs() <= half_w && y.abs() <= r - x.abs() / 3f32.sqrt();
             let rgb = if y >= x.abs() / 3f32.sqrt() {
-                TOP
+                top
             } else if x < 0.0 {
-                LEFT
+                left
             } else {
-                RIGHT
+                right
             };
             px.extend_from_slice(&rgb);
             px.push(if inside { 255 } else { 0 });
@@ -145,11 +171,15 @@ mod tests {
             label(&Status::Absent(None), now),
             "Bitwarden agent not reachable"
         );
+        assert_eq!(
+            label(&Status::Paused(Some(at(90))), now),
+            "Auto sync paused, last sync 1m ago"
+        );
     }
 
     #[test]
     fn icon_has_three_faces_and_a_transparent_corner() {
-        let px = icon_rgba(32);
+        let px = icon_rgba(32, false);
         assert_eq!(px.len(), 32 * 32 * 4);
         let at = |x: usize, y: usize| &px[(y * 32 + x) * 4..][..4];
         assert_eq!(at(0, 0)[3], 0);

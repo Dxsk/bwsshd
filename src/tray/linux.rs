@@ -3,17 +3,21 @@
 
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use ksni::blocking::TrayMethods;
-use ksni::menu::StandardItem;
+use ksni::menu::{RadioGroup, RadioItem, StandardItem, SubMenu};
 use ksni::{Icon, MenuItem};
 
-use super::{Notify, WAITING, icon_rgba, label, open_config, version_line};
+use super::{
+    Control, Notify, PRESETS, Status, WAITING, every, icon_rgba, label, open_config, version_line,
+};
 
 struct Tray {
     status: String,
-    resync: Sender<()>,
+    paused: bool,
+    interval: u64,
+    control: Sender<Control>,
     out: PathBuf,
 }
 
@@ -29,7 +33,7 @@ impl ksni::Tray for Tray {
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
-        let mut data = icon_rgba(32);
+        let mut data = icon_rgba(32, self.paused);
         // SNI wants ARGB in network byte order.
         for px in data.as_chunks_mut::<4>().0 {
             px.rotate_right(1);
@@ -66,8 +70,48 @@ impl ksni::Tray for Tray {
             StandardItem {
                 label: "Resync now".into(),
                 activate: Box::new(|t: &mut Self| {
-                    let _ = t.resync.send(());
+                    let _ = t.control.send(Control::Resync);
                 }),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: if self.paused {
+                    "Resume auto sync"
+                } else {
+                    "Pause auto sync"
+                }
+                .into(),
+                activate: Box::new(|t: &mut Self| {
+                    let _ = t.control.send(Control::Pause(!t.paused));
+                }),
+                ..Default::default()
+            }
+            .into(),
+            SubMenu {
+                label: format!("Sync every {}", every(self.interval)),
+                submenu: vec![
+                    RadioGroup {
+                        // Past the end when --interval is not a preset: none checked.
+                        selected: PRESETS
+                            .iter()
+                            .position(|&s| s == self.interval)
+                            .unwrap_or(PRESETS.len()),
+                        select: Box::new(|t: &mut Self, i: usize| {
+                            t.interval = PRESETS[i];
+                            let d = Duration::from_secs(t.interval);
+                            let _ = t.control.send(Control::Interval(d));
+                        }),
+                        options: PRESETS
+                            .iter()
+                            .map(|&s| RadioItem {
+                                label: every(s),
+                                ..Default::default()
+                            })
+                            .collect(),
+                    }
+                    .into(),
+                ],
                 ..Default::default()
             }
             .into(),
@@ -90,14 +134,16 @@ impl ksni::Tray for Tray {
     }
 }
 
-pub fn run<F>(out: PathBuf, watch: F) -> Result<(), String>
+pub fn run<F>(out: PathBuf, interval: Duration, watch: F) -> Result<(), String>
 where
-    F: FnOnce(Receiver<()>, Notify) + Send + 'static,
+    F: FnOnce(Receiver<Control>, Notify) + Send + 'static,
 {
     let (tx, rx) = mpsc::channel();
     let tray = Tray {
         status: WAITING.into(),
-        resync: tx,
+        paused: false,
+        interval: interval.as_secs(),
+        control: tx,
         out,
     };
     // At login the panel may come up after us: wait for it instead of failing.
@@ -109,7 +155,11 @@ where
         rx,
         Box::new(move |s| {
             let text = label(&s, Instant::now());
-            handle.update(|t| t.status = text);
+            let paused = matches!(s, Status::Paused(_));
+            handle.update(|t| {
+                t.status = text;
+                t.paused = paused;
+            });
         }),
     );
     Ok(())
