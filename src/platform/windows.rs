@@ -72,8 +72,8 @@ pub fn format_include(ssh_config_dir: &Path, out: &Path) -> String {
 /// with the shell, so it stays.
 pub fn hide_own_console() {
     use windows_sys::Win32::System::Console::{
-        FreeConsole, GetConsoleProcessList, SetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
-        STD_OUTPUT_HANDLE,
+        FreeConsole, GetConsoleProcessList, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+        SetStdHandle,
     };
     let mut ids = [0u32; 2];
     // SAFETY: the buffer holds the 2 entries it is declared with.
