@@ -7,7 +7,8 @@
       "package-name": "bwsshd",
       "exclude-paths": [
         "site"
-      ]
+      ],
+      "release-as": "1.0.0"
     }
   }
 }
