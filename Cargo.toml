@@ -1,6 +1,6 @@
 [package]
 name = "bwsshd"
-version = "0.2.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Keep your ssh_config in sync with the SSH keys stored in your Bitwarden vault"
