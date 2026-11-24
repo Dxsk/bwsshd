@@ -32,3 +32,25 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo build --locked
       - run: cargo test --locked
+      # Hosted macOS runners are Apple silicon with a GUI session, so the tray
+      # can at least start. No agent runs here: the config stays "absent".
+      - name: Tray smoke test
+        if: runner.os == 'macOS'
+        run: |
+          d=$(mktemp -d)
+          ./target/debug/bwsshd --tray --interval 2s --out "$d/config.bw" \
+            --keydir "$d/keys" --ssh-config "$d/config" --logfile "$d/log" &
+          pid=$!
+          sleep 10
+          cat "$d/log"
+          kill -0 "$pid" # still running: the icon and its event loop came up
+          kill "$pid"
+          grep -q "watching for the Bitwarden agent" "$d/log"
+      - name: Lint the LaunchAgent written by install.sh
+        if: runner.os == 'macOS'
+        run: |
+          awk '/cat >"\$plist" <<EOF/ {f=1; next} /^EOF$/ {f=0} f' site/public/install.sh |
+            sed -e 's|\$label|fr.infrasouveraine.bwsshd|' -e 's|\$BIN_DIR|/usr/local/bin|' \
+              -e 's|\$log|/tmp/bwsshd.log|' >"$RUNNER_TEMP/agent.plist"
+          cat "$RUNNER_TEMP/agent.plist"
+          plutil -lint "$RUNNER_TEMP/agent.plist"
