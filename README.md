@@ -220,8 +220,10 @@ bwsshd --watch
 ```
 
 Add an icon to the notification area (Windows), the menu bar (macOS) or the
-system tray (Linux). Right-click it to see when bwsshd last read the agent,
-force a resync, or quit:
+system tray (Linux). Its right-click menu shows the version and when bwsshd
+last read the agent, and can resync now, open the generated config in a text
+editor, or quit. On Windows and macOS a left click opens a small panel with
+the version, commit, build date and sync status:
 
 ```sh
 bwsshd --watch --tray
@@ -326,7 +328,7 @@ generated config and removes its key directory until the app comes back.
 | `--keydir` | `~/.ssh/bwsshd-keys` | Where public keys are written |
 | `--ssh-config` | `~/.ssh/config` | ssh_config to add the Include line to |
 | `--watch` | off | Loop instead of a single run |
-| `--tray` | off | Show a tray icon with the last sync, *Resync now* and *Quit* (implies `--watch`) |
+| `--tray` | off | Show a tray icon with the last sync, *Resync now*, *Open generated config* and *Quit* (implies `--watch`) |
 | `--interval` | `10s` | Poll interval in watch mode (`30s`, `1m`, ...) |
 | `--logfile` | stderr | Append logs to this file (used by the Windows scheduled task, which has no console) |
 | `--version` | | Print the version and exit |

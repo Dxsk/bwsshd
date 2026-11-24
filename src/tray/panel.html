@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Inter"; src: url(data:font/woff2;base64,{{INTER}}) format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Space Grotesk"; src: url(data:font/woff2;base64,{{GROTESK}}) format("woff2"); font-weight: 300 700; }
+@font-face { font-family: "JetBrains Mono"; src: url(data:font/woff2;base64,{{MONO}}) format("woff2"); font-weight: 100 800; }
+:root {
+  --ground: #0a0d14; --panel: #0e1220; --surface: #121725; --hairline: #1b2236; --line: #252d44;
+  --text: #e8ebf4; --soft: #c5ccdc; --muted: #a3acc2; --faint: #7d87a3;
+  --signal: #4fe3c8; --on-signal: #06231e; --reject: #ffb547;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--ground); color: var(--text); font: 14px/1.5 "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; user-select: none; cursor: default; overflow: hidden;
+  border: 1px solid var(--line); display: flex; flex-direction: column;
+  background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px); background-size: 6px 6px;
+}
+header { display: flex; align-items: center; gap: 10px; padding: 18px 20px 14px; border-bottom: 1px solid var(--hairline); background: var(--ground); }
+header h1 { font: 600 20px/1 "Space Grotesk", sans-serif; letter-spacing: -.03em; }
+.pill { margin-left: auto; font: 12px "JetBrains Mono", monospace; color: var(--soft); padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+main { flex: 1; padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+.status { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--faint); }
+.ok .dot { background: var(--signal); box-shadow: 0 0 10px var(--signal); }
+.warn .dot { background: var(--reject); box-shadow: 0 0 10px var(--reject); }
+.eyebrow { font: 12px "JetBrains Mono", monospace; color: var(--signal); }
+.warn .eyebrow { color: var(--reject); }
+#label { font: 600 17px/1.3 "Space Grotesk", sans-serif; letter-spacing: -.02em; margin-top: 2px; }
+#detail { color: var(--muted); font-size: 13px; margin-top: 2px; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+dt { color: var(--faint); }
+dd { font-family: "JetBrains Mono", monospace; color: var(--soft); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+footer { display: flex; gap: 8px; padding: 14px 20px 18px; }
+button { flex: 1; height: 40px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--soft); cursor: pointer; }
+button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+button:hover { border-color: #33405f; color: var(--text); }
+button.primary { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
+button.primary:hover { background: #6ff0d8; color: var(--on-signal); }
+button.danger:hover { border-color: var(--reject); color: var(--reject); }
+</style>
+</head>
+<body>
+<header>
+  <svg width="24" height="24" viewBox="0 0 26 26" aria-hidden="true">
+    <polygon points="13,2 24,8 13,14 2,8" fill="#4FE3C8"/>
+    <polygon points="2,8 13,14 13,25 2,19" fill="#258C7B"/>
+    <polygon points="24,8 13,14 13,25 24,19" fill="#33AE99"/>
+  </svg>
+  <h1>bwsshd</h1>
+  <span class="pill">v{{VERSION}}</span>
+</header>
+<main>
+  <div id="status" class="status">
+    <span class="dot"></span>
+    <div>
+      <div class="eyebrow" id="eyebrow">Starting</div>
+      <div id="label">Waiting for the first sync</div>
+      <div id="detail"></div>
+    </div>
+  </div>
+  <dl>
+    <dt>Version</dt><dd>{{VERSION}}</dd>
+    <dt>Commit</dt><dd>{{COMMIT}}</dd>
+    <dt>Built from</dt><dd>{{DATE}}</dd>
+    <dt>Config</dt><dd id="out" title="{{OUT}}">{{OUT}}</dd>
+  </dl>
+</main>
+<footer>
+  <button class="primary" title="Resync now" aria-label="Resync now" onclick="ipc.postMessage('resync')">
+    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+  </button>
+  <button title="Open generated config" aria-label="Open generated config" onclick="ipc.postMessage('open')">
+    <svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+  </button>
+  <button class="danger" title="Quit bwsshd" aria-label="Quit bwsshd" onclick="ipc.postMessage('quit')">
+    <svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>
+  </button>
+</footer>
+<script>
+let synced = null;
+function ago(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 5) return "just now";
+  if (s < 60) return s + "s ago";
+  const m = Math.floor(s / 60);
+  return m < 60 ? m + "m ago" : Math.floor(m / 60) + "h " + (m % 60) + "m ago";
+}
+function render() {
+  document.getElementById("detail").textContent = synced === null ? "No sync yet" : "Last sync " + ago(Date.now() - synced);
+}
+// Called from Rust: kind is "ok", "absent" or "failed"; msAgo is the age of
+// the last sync, or null before the first one.
+window.update = (kind, error, msAgo) => {
+  synced = msAgo === null ? null : Date.now() - msAgo;
+  document.getElementById("status").className = "status " + (kind === "ok" ? "ok" : "warn");
+  document.getElementById("eyebrow").textContent = { ok: "In sync", absent: "Agent unreachable", failed: "Sync failed" }[kind];
+  document.getElementById("label").textContent = {
+    ok: "Config matches your vault",
+    absent: "Bitwarden is closed or locked",
+    failed: error,
+  }[kind];
+  render();
+};
+setInterval(render, 1000);
+document.addEventListener("keydown", (e) => e.key === "Escape" && ipc.postMessage("hide"));
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+</script>
+</body>
+</html>

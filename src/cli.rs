@@ -155,7 +155,7 @@ fn run_with(cli: Cli) -> Result<(), String> {
     );
     let interval = cli.interval;
     if cli.tray {
-        return tray::run(move |resync, notify| {
+        return tray::run(out.clone(), move |resync, notify| {
             watch(&candidates, &out, &keydir, interval, &resync, &*notify)
         });
     }

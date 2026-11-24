@@ -1,23 +1,38 @@
 //! Windows and macOS: tray-icon on a tao event loop, which must own the main
 //! thread on macOS. The watch loop runs on a worker thread and wakes the event
-//! loop through its proxy.
+//! loop through its proxy. Left click opens a small webview panel styled like
+//! the website; right click opens the menu.
 
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use tao::event::{Event, StartCause};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use tao::dpi::{LogicalSize, PhysicalPosition};
+use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
+use tao::window::{Window, WindowBuilder};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
-use tray_icon::{Icon, TrayIconBuilder};
+use tray_icon::{Icon, MouseButton, MouseButtonState, Rect, TrayIconBuilder, TrayIconEvent};
+use wry::WebViewBuilder;
 
-use super::{Notify, WAITING, icon_rgba, label};
+use super::{
+    COMMIT, COMMIT_DATE, Notify, Status, VERSION, WAITING, icon_rgba, label, open_config,
+    version_line,
+};
 
 enum UserEvent {
-    Status(String),
+    Status(Status),
     Menu(MenuEvent),
+    Tray(TrayIconEvent),
+    Panel(String),
 }
 
-pub fn run<F>(watch: F) -> Result<(), String>
+const PANEL_W: f64 = 360.0;
+const PANEL_H: f64 = 380.0;
+
+pub fn run<F>(out: PathBuf, watch: F) -> Result<(), String>
 where
     F: FnOnce(Receiver<()>, Notify) + Send + 'static,
 {
@@ -34,13 +49,50 @@ where
     MenuEvent::set_event_handler(Some(move |e| {
         let _ = proxy.send_event(UserEvent::Menu(e));
     }));
+    let proxy = event_loop.create_proxy();
+    TrayIconEvent::set_event_handler(Some(move |e| {
+        let _ = proxy.send_event(UserEvent::Tray(e));
+    }));
 
     let status = MenuItem::new(WAITING, false, None);
     let resync = MenuItem::new("Resync now", true, None);
+    let open = MenuItem::new("Open generated config", true, None);
     let quit = MenuItem::new("Quit bwsshd", true, None);
-    let menu = Menu::with_items(&[&status, &PredefinedMenuItem::separator(), &resync, &quit])
-        .map_err(|e| format!("tray menu: {e}"))?;
+    let menu = Menu::with_items(&[
+        &MenuItem::new(format!("bwsshd {}", version_line()), false, None),
+        &status,
+        &PredefinedMenuItem::separator(),
+        &resync,
+        &open,
+        &quit,
+    ])
+    .map_err(|e| format!("tray menu: {e}"))?;
     let icon = Icon::from_rgba(icon_rgba(32), 32, 32).map_err(|e| format!("tray icon: {e}"))?;
+
+    let mut wb = WindowBuilder::new()
+        .with_title("bwsshd")
+        .with_inner_size(LogicalSize::new(PANEL_W, PANEL_H))
+        .with_resizable(false)
+        .with_decorations(false)
+        .with_always_on_top(true)
+        .with_visible(false);
+    #[cfg(windows)]
+    {
+        use tao::platform::windows::WindowBuilderExtWindows;
+        wb = wb.with_skip_taskbar(true);
+    }
+    let window = wb
+        .build(&event_loop)
+        .map_err(|e| format!("tray panel: {e}"))?;
+    let proxy = event_loop.create_proxy();
+    let webview = WebViewBuilder::new()
+        .with_html(panel_html(&out))
+        .with_background_color((10, 13, 20, 255))
+        .with_ipc_handler(move |req| {
+            let _ = proxy.send_event(UserEvent::Panel(req.body().clone()));
+        })
+        .build(&window)
+        .map_err(|e| format!("tray panel: {e}"))?;
 
     let (tx, rx) = mpsc::channel();
     let proxy = event_loop.create_proxy();
@@ -48,7 +100,7 @@ where
         watch(
             rx,
             Box::new(move |s| {
-                let _ = proxy.send_event(UserEvent::Status(label(&s, Instant::now())));
+                let _ = proxy.send_event(UserEvent::Status(s));
             }),
         )
     });
@@ -56,10 +108,15 @@ where
     let mut builder = Some(
         TrayIconBuilder::new()
             .with_menu(Box::new(menu))
+            .with_menu_on_left_click(false)
             .with_tooltip("bwsshd")
             .with_icon(icon),
     );
     let mut tray = None;
+    let mut last_script = String::new();
+    // Clicking the icon while the panel is open first blurs it (hiding it);
+    // the click that follows must not reopen it.
+    let mut hidden_at = Instant::now();
     event_loop.run(move |event, _, flow| {
         *flow = ControlFlow::Wait;
         match event {
@@ -74,20 +131,137 @@ where
                     None => {}
                 }
             }
-            Event::UserEvent(UserEvent::Status(text)) => {
+            Event::UserEvent(UserEvent::Status(s)) => {
+                let text = label(&s, Instant::now());
                 status.set_text(&text);
                 if let Some(t) = &tray {
                     let _ = t.set_tooltip(Some(format!("bwsshd: {text}")));
                 }
+                last_script = panel_script(&s);
+                let _ = webview.evaluate_script(&last_script);
             }
-            Event::UserEvent(UserEvent::Menu(e)) if e.id == *resync.id() => {
-                let _ = tx.send(());
+            Event::UserEvent(UserEvent::Tray(TrayIconEvent::Click {
+                rect,
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            })) => {
+                if window.is_visible() {
+                    window.set_visible(false);
+                } else if hidden_at.elapsed() > Duration::from_millis(300) {
+                    place(&window, rect);
+                    let _ = webview.evaluate_script(&last_script);
+                    window.set_visible(true);
+                    window.set_focus();
+                }
             }
-            Event::UserEvent(UserEvent::Menu(e)) if e.id == *quit.id() => {
-                info!("quit from the tray");
-                std::process::exit(0);
+            Event::WindowEvent {
+                event: WindowEvent::Focused(false),
+                ..
+            } => {
+                window.set_visible(false);
+                hidden_at = Instant::now();
             }
+            Event::UserEvent(UserEvent::Menu(e)) => {
+                if e.id == *resync.id() {
+                    let _ = tx.send(());
+                } else if e.id == *open.id() {
+                    open_config(&out);
+                } else if e.id == *quit.id() {
+                    quit_now();
+                }
+            }
+            Event::UserEvent(UserEvent::Panel(msg)) => match msg.as_str() {
+                "resync" => {
+                    let _ = tx.send(());
+                }
+                "open" => {
+                    window.set_visible(false);
+                    open_config(&out);
+                }
+                "hide" => window.set_visible(false),
+                "quit" => quit_now(),
+                _ => {}
+            },
             _ => {}
         }
     })
+}
+
+fn quit_now() -> ! {
+    info!("quit from the tray");
+    std::process::exit(0);
+}
+
+/// Puts the panel next to the icon: above it when the icon sits in the lower
+/// half of its screen (Windows taskbar), below it otherwise (macOS menu bar).
+fn place(window: &Window, icon: Rect) {
+    let size = window.outer_size();
+    let (w, h) = (size.width as f64, size.height as f64);
+    let (ix, iy) = (icon.position.x, icon.position.y);
+    let contains = |m: &tao::monitor::MonitorHandle| {
+        let (p, s) = (m.position(), m.size());
+        ix >= p.x as f64
+            && ix < p.x as f64 + s.width as f64
+            && iy >= p.y as f64
+            && iy < p.y as f64 + s.height as f64
+    };
+    let Some(mon) = window
+        .available_monitors()
+        .find(contains)
+        .or_else(|| window.primary_monitor())
+    else {
+        return;
+    };
+    let (mx, my) = (mon.position().x as f64, mon.position().y as f64);
+    let (mw, mh) = (mon.size().width as f64, mon.size().height as f64);
+    let gap = 8.0 * mon.scale_factor();
+    let x = (ix + icon.size.width as f64 / 2.0 - w / 2.0).clamp(mx + gap, mx + mw - w - gap);
+    let y = if iy > my + mh / 2.0 {
+        iy - h - gap
+    } else {
+        iy + icon.size.height as f64 + gap
+    };
+    window.set_outer_position(PhysicalPosition::new(x, y));
+}
+
+fn panel_html(out: &std::path::Path) -> String {
+    let b64 = |bytes: &[u8]| STANDARD.encode(bytes);
+    let or_na = |s: &str| if s.is_empty() { "n/a" } else { s }.to_string();
+    include_str!("panel.html")
+        .replace(
+            "{{INTER}}",
+            &b64(include_bytes!("../../assets/fonts/inter.woff2")),
+        )
+        .replace(
+            "{{GROTESK}}",
+            &b64(include_bytes!("../../assets/fonts/space-grotesk.woff2")),
+        )
+        .replace(
+            "{{MONO}}",
+            &b64(include_bytes!("../../assets/fonts/jetbrains-mono.woff2")),
+        )
+        .replace("{{VERSION}}", VERSION)
+        .replace("{{COMMIT}}", &or_na(COMMIT))
+        .replace("{{DATE}}", &or_na(COMMIT_DATE))
+        .replace("{{OUT}}", &html_escape(&out.display().to_string()))
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// The `update(...)` call that refreshes the panel. Rust's `{:?}` string
+/// escaping is valid JavaScript.
+fn panel_script(s: &Status) -> String {
+    let ms = |t: &Instant| t.elapsed().as_millis().to_string();
+    let (kind, error, ago) = match s {
+        Status::Synced(t) => ("ok", "", ms(t)),
+        Status::Absent(t) => ("absent", "", t.as_ref().map_or("null".into(), ms)),
+        Status::Failed(e) => ("failed", e.as_str(), "null".into()),
+    };
+    format!("window.update && update({kind:?}, {error:?}, {ago})")
 }
