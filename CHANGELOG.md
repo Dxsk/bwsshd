@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Dxsk/bwsshd/compare/v1.0.0...v1.0.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **release:** attach binaries before publishing the release ([8eb6caa](https://github.com/Dxsk/bwsshd/commit/8eb6caad924cd5a96102ea70b5819dab55317ba4))
+
 ## [1.0.0](https://github.com/Dxsk/bwsshd/compare/v0.2.0...v1.0.0) (2026-11-24)
 
 
