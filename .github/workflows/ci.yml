@@ -61,15 +61,18 @@ jobs:
       - name: MSI install and uninstall
         if: runner.os == 'Windows'
         shell: bash
+        timeout-minutes: 20
         run: |
+          # A hung msiexec gets killed so its (flushed, UTF-16) log still shows.
+          msi() { timeout 300 msiexec "$@" || { tail -c 40000 "${@: -1}" | tr -d '\0'; exit 1; }; }
           cargo build --release --locked
           dotnet tool install --global wix --version 5.0.2
           wix extension add --global WixToolset.Util.wixext/5.0.2
           wix build packaging/windows/bwsshd.wxs -arch x64 -ext WixToolset.Util.wixext \
             -d Version=0.0.1 -d Bin=target/release/bwsshd.exe -o bwsshd.msi
-          msiexec //i bwsshd.msi //qn //l*v install.log || { cat install.log; exit 1; }
+          msi //i bwsshd.msi //qn //l*v! install.log
           test -f "$LOCALAPPDATA/Programs/bwsshd/bwsshd.exe"
           schtasks //Query //TN bwsshd //V //FO LIST
-          msiexec //x bwsshd.msi //qn //l*v uninstall.log || { cat uninstall.log; exit 1; }
+          msi //x bwsshd.msi //qn //l*v! uninstall.log
           ! test -e "$LOCALAPPDATA/Programs/bwsshd/bwsshd.exe"
           ! schtasks //Query //TN bwsshd
