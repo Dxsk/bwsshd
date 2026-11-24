@@ -32,6 +32,9 @@ ksni = { version = "0.3.7", features = ["blocking"] }
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
 
+[target."cfg(windows)".dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Pipes", "Win32_System_IO"] }
+
 [profile.release]
 strip = true
 lto = true
