@@ -2,8 +2,8 @@ name: Release
 
 # release-please watches conventional-commit history on main, maintains a
 # "release" PR that bumps Cargo.toml and CHANGELOG.md, and on merge tags the
-# release. When a release is created, the build matrix compiles every target
-# and uploads the archives, then a last job publishes checksums.txt.
+# release as a draft. The build matrix compiles every target and uploads the
+# archives, then a last job adds checksums.txt and publishes the release.
 on:
   push:
     branches: [main]
@@ -92,3 +92,6 @@ jobs:
           gh release download "$TAG" --pattern 'bwsshd_*'
           sha256sum bwsshd_* > checksums.txt
           gh release upload "$TAG" checksums.txt --clobber
+          # Immutable releases take no assets once published, so release-please
+          # leaves a draft and it is published only now, with every file attached.
+          gh release edit "$TAG" --draft=false --latest
