@@ -18,9 +18,11 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, Rect, TrayIconBuilder, TrayIconEvent};
 use wry::{WebView, WebViewBuilder};
 
+use crate::update::{RELEASES, REPO};
+
 use super::{
     COMMIT, COMMIT_DATE, Control, Notify, PRESETS, Status, Update, VERSION, WAITING, icon_rgba,
-    label, open_config, open_releases, spawn_update_check, update_label, version_line,
+    label, open_config, open_url, spawn_update_check, update_label, version_line,
 };
 
 enum UserEvent {
@@ -60,6 +62,7 @@ where
     let resync = MenuItem::new("Resync now", true, None);
     let pause = MenuItem::new("Pause auto sync", true, None);
     let open = MenuItem::new("Open generated config", true, None);
+    let github = MenuItem::new("bwsshd on GitHub", true, None);
     let quit = MenuItem::new("Quit bwsshd", true, None);
     let update = MenuItem::new("Checking for updates", false, None);
     let menu = Menu::with_items(&[
@@ -70,6 +73,7 @@ where
         &resync,
         &pause,
         &open,
+        &github,
         &quit,
     ])
     .map_err(|e| format!("tray menu: {e}"))?;
@@ -232,8 +236,10 @@ where
                     let _ = tx.send(Control::Pause(!paused));
                 } else if e.id == *open.id() {
                     open_config(&out);
+                } else if e.id == *github.id() {
+                    open_url(REPO);
                 } else if e.id == *update.id() {
-                    open_releases();
+                    open_url(RELEASES);
                 } else if e.id == *quit.id() {
                     quit_now();
                 }
@@ -269,7 +275,11 @@ where
                 "quit" => quit_now(),
                 "release" => {
                     window.set_visible(false);
-                    open_releases();
+                    open_url(RELEASES);
+                }
+                "github" => {
+                    window.set_visible(false);
+                    open_url(REPO);
                 }
                 // The page is local, but it is still input: only presets pass.
                 m => {

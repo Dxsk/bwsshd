@@ -11,7 +11,7 @@ use ksni::{Icon, MenuItem};
 
 use super::{
     Control, Notify, PRESETS, Status, Update, WAITING, every, icon_rgba, label, open_config,
-    open_releases, spawn_update_check, update_label, version_line,
+    open_url, spawn_update_check, update_label, version_line,
 };
 
 struct Tray {
@@ -68,7 +68,7 @@ impl ksni::Tray for Tray {
                     .as_ref()
                     .map_or("Checking for updates".into(), update_label),
                 enabled: matches!(self.update, Some(Some((_, true)))),
-                activate: Box::new(|_: &mut Self| open_releases()),
+                activate: Box::new(|_: &mut Self| open_url(crate::update::RELEASES)),
                 ..Default::default()
             }
             .into(),
@@ -130,6 +130,12 @@ impl ksni::Tray for Tray {
             StandardItem {
                 label: "Open generated config".into(),
                 activate: Box::new(|t: &mut Self| open_config(&t.out)),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: "bwsshd on GitHub".into(),
+                activate: Box::new(|_: &mut Self| open_url(crate::update::REPO)),
                 ..Default::default()
             }
             .into(),

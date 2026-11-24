@@ -4,6 +4,7 @@
 use std::process::Command;
 
 const API: &str = "https://api.github.com/repos/Dxsk/bwsshd/releases/latest";
+pub const REPO: &str = "https://github.com/Dxsk/bwsshd";
 pub const RELEASES: &str = "https://github.com/Dxsk/bwsshd/releases/latest";
 
 /// The latest release tag, e.g. `v0.3.0`. `None` when offline, rate-limited

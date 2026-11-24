@@ -111,8 +111,8 @@ pub fn update_label(update: &Update) -> String {
     }
 }
 
-/// Opens the release page in the browser.
-pub fn open_releases() {
+/// Opens a page in the browser.
+pub fn open_url(url: &str) {
     let program = if cfg!(windows) {
         "explorer.exe"
     } else if cfg!(target_os = "macos") {
@@ -120,8 +120,8 @@ pub fn open_releases() {
     } else {
         "xdg-open"
     };
-    if let Err(e) = Command::new(program).arg(crate::update::RELEASES).spawn() {
-        info!("open {}: {e}", crate::update::RELEASES);
+    if let Err(e) = Command::new(program).arg(url).spawn() {
+        info!("open {url}: {e}");
     }
 }
 
