@@ -66,6 +66,15 @@ if (-not $Bin -or -not (Test-Path $Bin)) {
 # 2. Install the binary and create the log directory.
 New-Item -ItemType Directory -Force -Path $InstallDir, (Split-Path -Parent $LogFile) | Out-Null
 $TargetBin = Join-Path $InstallDir "bwsshd.exe"
+# On upgrade the running daemon locks the exe. Stopping the task only ends the
+# wscript launcher, so stop bwsshd itself too.
+if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+    Stop-ScheduledTask -TaskName $TaskName
+}
+Get-Process bwsshd -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -eq $TargetBin } |
+    Stop-Process -Force
+Start-Sleep -Milliseconds 500
 Copy-Item -Path $Bin -Destination $TargetBin -Force
 
 # 3. Build the command line and a hidden wscript launcher.
