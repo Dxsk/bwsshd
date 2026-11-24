@@ -37,14 +37,14 @@ pub fn generate(keys: &[Key], out: &Path, keydir: &Path, sock: &str) -> Result<(
         }
 
         let target = parse_target(&k.comment);
-        if let Some(t) = &target {
-            if seen_hosts.contains(&t.host) {
-                info!(
-                    "multiple keys map to host {}; keeping the first, ignoring {:?}",
-                    t.host, k.comment
-                );
-                continue;
-            }
+        if let Some(t) = &target
+            && seen_hosts.contains(&t.host)
+        {
+            info!(
+                "multiple keys map to host {}; keeping the first, ignoring {:?}",
+                t.host, k.comment
+            );
+            continue;
         }
 
         let base = [

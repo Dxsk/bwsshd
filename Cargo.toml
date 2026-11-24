@@ -2,7 +2,7 @@
 name = "bwsshd"
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Keep your ssh_config in sync with the SSH keys stored in your Bitwarden vault"
 license = "MIT"
 repository = "https://github.com/Dxsk/bwsshd"
@@ -28,6 +28,9 @@ wry = "0.57.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ksni = { version = "0.3.7", features = ["blocking"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 strip = true
