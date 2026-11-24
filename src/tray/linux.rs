@@ -31,7 +31,7 @@ impl ksni::Tray for Tray {
     fn icon_pixmap(&self) -> Vec<Icon> {
         let mut data = icon_rgba(32);
         // SNI wants ARGB in network byte order.
-        for px in data.chunks_exact_mut(4) {
+        for px in data.as_chunks_mut::<4>().0 {
             px.rotate_right(1);
         }
         vec![Icon {

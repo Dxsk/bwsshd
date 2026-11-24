@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use tao::dpi::{LogicalSize, PhysicalPosition};
-use tao::event::{Event, StartCause, WindowEvent};
+use tao::event::{Event, StartCause};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::{Window, WindowBuilder};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
@@ -117,6 +117,8 @@ where
     // Clicking the icon while the panel is open first blurs it (hiding it);
     // the click that follows must not reopen it.
     let mut hidden_at = Instant::now();
+    #[cfg(windows)]
+    let mut armed = false;
     event_loop.run(move |event, _, flow| {
         *flow = ControlFlow::Wait;
         match event {
@@ -153,10 +155,28 @@ where
                     let _ = webview.evaluate_script(&last_script);
                     window.set_visible(true);
                     window.set_focus();
+                    #[cfg(windows)]
+                    {
+                        armed = false;
+                    }
                 }
             }
+            // On Windows, focus moving into the webview or back from another
+            // app fires spurious Focused(false) events (the panel closed itself
+            // after "Open config"), so it polls the foreground window instead.
+            #[cfg(windows)]
+            Event::MainEventsCleared if window.is_visible() => {
+                if is_foreground(&window) {
+                    armed = true;
+                } else if armed {
+                    window.set_visible(false);
+                    hidden_at = Instant::now();
+                }
+                *flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(150));
+            }
+            #[cfg(not(windows))]
             Event::WindowEvent {
-                event: WindowEvent::Focused(false),
+                event: tao::event::WindowEvent::Focused(false),
                 ..
             } => {
                 window.set_visible(false);
@@ -186,6 +206,14 @@ where
             _ => {}
         }
     })
+}
+
+#[cfg(windows)]
+fn is_foreground(window: &Window) -> bool {
+    use tao::platform::windows::WindowExtWindows;
+    // SAFETY: GetForegroundWindow has no preconditions.
+    let fg = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+    fg as isize == window.hwnd()
 }
 
 fn quit_now() -> ! {
