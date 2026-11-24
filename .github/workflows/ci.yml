@@ -56,23 +56,28 @@ jobs:
           launchctl print "gui/$(id -u)/fr.infrasouveraine.bwsshd" | head -n 20
           ./target/debug/bwsshd uninstall
           ! launchctl print "gui/$(id -u)/fr.infrasouveraine.bwsshd" 2>/dev/null
-      # Same for the MSI: it installs per user, registers the logon task, and
-      # uninstalling removes both.
-      - name: MSI install and uninstall
+      # Same for the logon task, then for the setup: it installs per user,
+      # registers the task, and uninstalling removes both.
+      - name: Setup install and uninstall
         if: runner.os == 'Windows'
         shell: bash
-        timeout-minutes: 20
+        timeout-minutes: 10
         run: |
-          # A hung msiexec gets killed so its (flushed, UTF-16) log still shows.
-          msi() { timeout 300 msiexec "$@" || { tail -c 40000 "${@: -1}" | tr -d '\0'; exit 1; }; }
-          cargo build --release --locked
-          dotnet tool install --global wix --version 5.0.2
-          wix extension add --global WixToolset.Util.wixext/5.0.2
-          wix build packaging/windows/bwsshd.wxs -arch x64 -ext WixToolset.Util.wixext \
-            -d Version=0.0.1 -d Bin=target/release/bwsshd.exe -o bwsshd.msi
-          msi //i bwsshd.msi //qn //l*v! install.log
-          test -f "$LOCALAPPDATA/Programs/bwsshd/bwsshd.exe"
+          timeout 120 ./target/debug/bwsshd install
           schtasks //Query //TN bwsshd //V //FO LIST
-          msi //x bwsshd.msi //qn //l*v! uninstall.log
-          ! test -e "$LOCALAPPDATA/Programs/bwsshd/bwsshd.exe"
-          ! schtasks //Query //TN bwsshd
+          timeout 120 ./target/debug/bwsshd uninstall
+          # `set -e` ignores a failing `! cmd`, hence the `|| exit 1`.
+          ! schtasks //Query //TN bwsshd || exit 1
+
+          choco install nsis -y --no-progress > /dev/null
+          "/c/Program Files (x86)/NSIS/makensis.exe" -V2 -DVERSION=0.0.1 \
+            "-DBIN=$(cygpath -aw target/debug/bwsshd.exe)" "-DOUT=$(cygpath -aw bwsshd_setup.exe)" \
+            packaging/windows/bwsshd.nsi
+          dir="$(cygpath -u "$LOCALAPPDATA")/Programs/bwsshd"
+          timeout 120 ./bwsshd_setup.exe //S
+          test -f "$dir/bwsshd.exe"
+          schtasks //Query //TN bwsshd //V //FO LIST
+          # _?= runs the uninstaller in place, so it is waited for (and stays).
+          timeout 120 "$dir/uninstall.exe" //S "_?=$(cygpath -w "$dir")"
+          ! test -e "$dir/bwsshd.exe" || exit 1
+          ! schtasks //Query //TN bwsshd || exit 1

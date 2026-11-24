@@ -75,17 +75,17 @@ jobs:
             tar -czf "../../$NAME.tar.gz" *
             echo "ASSET=$NAME.tar.gz" >> "$GITHUB_ENV"
           fi
-      - name: Build the MSI
+      - name: Build the setup
         if: matrix.os == 'windows'
         run: |
-          dotnet tool install --global wix --version 5.0.2
-          wix extension add --global WixToolset.Util.wixext/5.0.2
-          wix build packaging/windows/bwsshd.wxs -arch ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }} \
-            -ext WixToolset.Util.wixext -d "Version=${{ needs.release-please.outputs.version }}" \
-            -d "Bin=target/${{ matrix.target }}/release/bwsshd.exe" -o "$NAME.msi"
-          echo "MSI=$NAME.msi" >> "$GITHUB_ENV"
+          choco install nsis -y --no-progress > /dev/null
+          "/c/Program Files (x86)/NSIS/makensis.exe" -V2 "-DVERSION=${{ needs.release-please.outputs.version }}" \
+            "-DBIN=$(cygpath -aw "target/${{ matrix.target }}/release/bwsshd.exe")" \
+            "-DOUT=$(cygpath -aw "${NAME}_setup.exe")" \
+            packaging/windows/bwsshd.nsi
+          echo "SETUP=${NAME}_setup.exe" >> "$GITHUB_ENV"
       - name: Upload
-        run: gh release upload "$TAG" "$ASSET" ${MSI:-} --clobber
+        run: gh release upload "$TAG" "$ASSET" ${SETUP:-} --clobber
 
   checksums:
     needs: [release-please, build]

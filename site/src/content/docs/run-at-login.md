@@ -13,7 +13,7 @@ In watch mode bwsshd polls the agent every 10 seconds and rewrites the config on
 bwsshd install
 ```
 
-This starts the binary you ran it with at every login, as you, with no administrator rights. The one-line installers and the Windows `.msi` run it for you; after `cargo install bwsshd`, run it yourself once.
+This starts the binary you ran it with at every login, as you, with no administrator rights. The one-line installers and the Windows setup run it for you; after `cargo install bwsshd`, run it yourself once.
 
 | Platform | What it sets up | Logs |
 |----------|-----------------|------|
