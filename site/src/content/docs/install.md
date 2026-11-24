@@ -25,9 +25,9 @@ It downloads the latest release, copies `bwsshd.exe` to `%LOCALAPPDATA%\Programs
 
 ## Windows installer
 
-Prefer a regular setup? Each release has a `.msi` for `amd64` and `arm64`. It installs for your account only (no administrator rights), registers the logon task and starts bwsshd. Remove it from **Settings > Apps** like any other program.
+Prefer a regular setup? Each release has a `bwsshd_<version>_windows_<arch>_setup.exe` for `amd64` and `arm64`. It installs for your account only (no administrator rights), registers the logon task and starts bwsshd. Remove it from **Settings > Apps** like any other program.
 
-> The `.msi` is not code-signed yet, so SmartScreen may warn on first run: **More info**, then **Run anyway**.
+> The setup is not code-signed yet, so SmartScreen may warn on first run: **More info**, then **Run anyway**.
 
 > Prefer reading a script before piping it to a shell? Open [install.sh](/install.sh) or [install.ps1](/install.ps1) first, they are short.
 
@@ -39,7 +39,7 @@ Every [release](https://github.com/Dxsk/bwsshd/releases) ships one archive per p
 |----------|---------|
 | Linux (static, any distro) | `bwsshd_<version>_linux_<arch>.tar.gz` |
 | macOS | `bwsshd_<version>_darwin_<arch>.tar.gz` |
-| Windows | `bwsshd_<version>_windows_<arch>.zip` or `.msi` |
+| Windows | `bwsshd_<version>_windows_<arch>.zip` or `_setup.exe` |
 
 `checksums.txt` lists their SHA-256 sums. Each archive holds the binary, the README and the license; run `bwsshd install` from where you put the binary to start it at login.
 

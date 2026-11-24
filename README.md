@@ -166,8 +166,8 @@ Add `[nobwsshd]` anywhere in the name to make bwsshd skip a key entirely.
 <br>
 
 Grab a prebuilt binary from the [releases](https://github.com/Dxsk/bwsshd/releases):
-`.tar.gz` for Linux (static, any distro) and macOS, `.zip` or `.msi` for
-Windows, each for `amd64` and `arm64`. The `.msi` installs for your account
+`.tar.gz` for Linux (static, any distro) and macOS, `.zip` or `_setup.exe` for
+Windows, each for `amd64` and `arm64`. The setup installs for your account
 only and starts bwsshd at login; it is not code-signed yet, so SmartScreen may
 ask you to confirm.
 

@@ -26,3 +26,12 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo build --locked
       - run: cargo test --locked
+      # The Windows setup is built and installed on GitHub; this only checks
+      # that the script compiles, with a stand-in for the exe.
+      - name: NSIS script
+        run: |
+          if ! command -v makensis >/dev/null; then
+            s=; [ "$(id -u)" = 0 ] || s=sudo
+            $s apt-get update -qq && $s apt-get install -y -qq nsis > /dev/null
+          fi
+          makensis -V2 -DVERSION=0.0.0 "-DBIN=$PWD/LICENSE" -DOUT=/tmp/setup.exe packaging/windows/bwsshd.nsi
