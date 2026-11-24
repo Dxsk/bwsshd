@@ -19,19 +19,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The Forgejo forge only has Linux runners; other OS jobs would never start there.
-        os: ${{ fromJSON(github.server_url == 'https://github.com' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      # rustup ships on GitHub-hosted runners but not in the Forgejo node:20-bookworm image.
-      - name: Bootstrap rustup
-        if: runner.os == 'Linux'
-        run: |
-          if ! command -v rustup >/dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
-            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          fi
+      # rustup ships on every GitHub-hosted runner; no third-party action needed.
       - name: Install Rust
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy --no-self-update && rustup default stable
       - name: rustfmt

@@ -14,8 +14,6 @@ permissions:
 
 jobs:
   release-please:
-    # Releases are cut on GitHub; the Forgejo forge only runs CI.
-    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
