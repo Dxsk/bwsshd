@@ -71,12 +71,22 @@ pub fn format_include(ssh_config_dir: &Path, out: &Path) -> String {
 /// window of its own; the tray does not need it. A shell's console is shared
 /// with the shell, so it stays.
 pub fn hide_own_console() {
-    use windows_sys::Win32::System::Console::{FreeConsole, GetConsoleProcessList};
+    use windows_sys::Win32::System::Console::{
+        FreeConsole, GetConsoleProcessList, SetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
+        STD_OUTPUT_HANDLE,
+    };
     let mut ids = [0u32; 2];
     // SAFETY: the buffer holds the 2 entries it is declared with.
     if unsafe { GetConsoleProcessList(ids.as_mut_ptr(), 2) } == 1 {
-        // SAFETY: no preconditions; logs then go to --logfile or nowhere.
-        unsafe { FreeConsole() };
+        // SAFETY: no preconditions; logs then go to --logfile or nowhere. The
+        // std handles still point at the freed console and child processes
+        // (browser, editor) failed to spawn with them (os error 50): clear them.
+        unsafe {
+            FreeConsole();
+            for h in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+                SetStdHandle(h, std::ptr::null_mut());
+            }
+        }
     }
 }
 
