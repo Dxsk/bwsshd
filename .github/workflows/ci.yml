@@ -8,24 +8,27 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build-test:
-    # Test on both OSes: the agent's transport and path handling are
-    # platform-specific (unix socket + forward-as-is on Linux, named pipe +
-    # forward-slash config on Windows), so each build tag needs its own runner.
+    # Test on every OS: the agent transport and path handling are
+    # platform-specific (unix socket + absolute Include on Linux/macOS, named
+    # pipe + forward-slash relative Include on Windows).
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-      - name: gofmt
+      # rustup ships on every GitHub-hosted runner; no third-party action needed.
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy --no-self-update && rustup default stable
+      - name: rustfmt
         if: runner.os == 'Linux' # formatting is OS-independent; check it once
-        run: test -z "$(gofmt -l .)" || { echo "not gofmt-clean, run gofmt -w ."; gofmt -l .; exit 1; }
-      - run: go vet ./...
-      - run: go build ./...
-      - run: go test -cover ./...
+        run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo build --locked
+      - run: cargo test --locked

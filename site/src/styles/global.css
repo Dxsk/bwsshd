@@ -1,0 +1,249 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/jetbrains-mono";
+
+:root {
+  color-scheme: dark;
+  --ground: #0a0d14;
+  --panel: #0e1220;
+  --surface: #121725;
+  --raised: #171d2e;
+  --hairline: #1b2236;
+  --line: #252d44;
+  --text: #e8ebf4;
+  --soft: #c5ccdc;
+  --muted: #a3acc2;
+  --faint: #7d87a3;
+  --signal: #4fe3c8;
+  /* Bold text in explanations. Lilac rather than cyan, so it never reads as a
+     link. */
+  --emph: #c9bcff;
+  --signal-deep: #1e5f57;
+  --on-signal: #06231e;
+  --reject: #ffb547;
+  --reject-deep: #5a4220;
+
+  --font-body: "Inter Variable", system-ui, sans-serif;
+  --font-display: "Space Grotesk Variable", "Inter Variable", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --wrap: 1200px;
+  --radius: 14px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+strong,
+b {
+  color: var(--emph);
+  font-weight: 600;
+}
+
+a {
+  color: var(--signal);
+  text-decoration: none;
+}
+a:hover {
+  color: #8ff0de;
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+.wrap {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 6px 6px;
+}
+
+.section {
+  border-bottom: 1px solid var(--hairline);
+  padding: 96px 0;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--signal);
+}
+
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+  margin-bottom: 40px;
+}
+
+.section-head h2 {
+  font-size: clamp(30px, 4vw, 40px);
+}
+
+.lead {
+  color: var(--muted);
+}
+
+.inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--text);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 10px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.btn:hover {
+  color: var(--text);
+  border-color: #33405f;
+}
+.btn-primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--on-signal);
+}
+.btn-primary:hover {
+  color: var(--on-signal);
+  background: #6ff0d8;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Isometric stages. The canvas, labels and tooltip are created by script, so
+   these rules are global rather than scoped to a component. */
+.stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+.stage .still {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.stage.live .still {
+  visibility: hidden;
+}
+.iso-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  image-rendering: pixelated;
+  cursor: grab;
+  touch-action: pan-y;
+}
+.iso-canvas.dragging {
+  cursor: grabbing;
+}
+.iso-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.iso-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 0.3s;
+}
+.iso-label.small {
+  font-size: 11px;
+  color: var(--faint);
+}
+.iso-label.signal {
+  color: var(--signal);
+}
+.iso-label.reject {
+  color: var(--reject);
+}
+.iso-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 260px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(14, 18, 32, 0.95);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+  z-index: 2;
+}

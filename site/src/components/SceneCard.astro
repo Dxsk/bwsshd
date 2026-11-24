@@ -1,0 +1,174 @@
+---
+interface Props {
+  scene: string;
+  step: string;
+  title: string;
+  tone?: "signal" | "reject";
+  alt: string;
+  toggle?: boolean;
+}
+const { scene, step, title, tone = "signal", alt, toggle = false } = Astro.props;
+---
+
+<article class="card" data-scene-card>
+  <div class="frame dots">
+    <div class="stage" data-stage data-scene={scene}>
+      <img class="still" src={`/stills/${scene}.svg`} alt={alt} width="404" height="266" loading="lazy" />
+    </div>
+  </div>
+  <div class="body">
+    <span class={`step ${tone}`}>{step}</span>
+    <h3>{title}</h3>
+    <p><slot /></p>
+    {
+      toggle ? (
+        <>
+          <pre class="config" data-config aria-live="polite" />
+          <div class="controls">
+            <button class="pill" data-toggle>
+              Close vault
+            </button>
+            <span class="readout" data-readout data-state="present">
+              state: present
+            </span>
+          </div>
+        </>
+      ) : (
+        <div class="controls">
+          <button class="play" data-play data-name={title} aria-label={`Pause ${title}`} data-playing="true">
+            <svg class="i-play" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 4l14 8-14 8z" />
+            </svg>
+            <svg class="i-pause" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 4h4v16H6zM14 4h4v16h-4z" />
+            </svg>
+          </button>
+          <div class={`track ${tone}`} aria-hidden="true">
+            <div data-progress />
+          </div>
+        </div>
+      )
+    }
+  </div>
+</article>
+
+<style>
+  .card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .frame {
+    border-bottom: 1px solid var(--hairline);
+    padding: 12px;
+  }
+  .stage {
+    aspect-ratio: 404 / 266;
+    border-radius: 8px;
+  }
+  .body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1 1 auto;
+  }
+  .step {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .signal {
+    color: var(--signal);
+  }
+  .reject {
+    color: var(--reject);
+  }
+  h3 {
+    font-size: 22px;
+  }
+  p {
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .controls {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 8px;
+  }
+  .play {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--raised);
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .play[data-playing="true"] .i-play,
+  .play[data-playing="false"] .i-pause {
+    display: none;
+  }
+  .track {
+    flex: 1 1 auto;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--hairline);
+    overflow: hidden;
+  }
+  .track div {
+    height: 100%;
+    width: 100%;
+    transform-origin: left;
+    transform: scaleX(var(--p, 0));
+    background: currentColor;
+  }
+  .track.signal {
+    color: var(--signal);
+  }
+  .track.reject {
+    color: var(--reject);
+  }
+  .pill {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--raised);
+    color: var(--text);
+    font: 12px var(--font-mono);
+    cursor: pointer;
+    min-width: 120px;
+  }
+  .readout {
+    font: 12px var(--font-mono);
+    color: var(--signal);
+  }
+  .readout[data-state="absent"] {
+    color: var(--muted);
+  }
+  /* Fixed to the tallest state (the Host block, wrapped at the narrowest card)
+     so toggling the vault never resizes the card or shifts the page. */
+  .config {
+    box-sizing: border-box;
+    margin: 4px 0 0;
+    height: calc(6 * 1.5em + 24px);
+    overflow: hidden;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    background: var(--ground);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--soft);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+</style>

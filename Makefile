@@ -1,6 +1,5 @@
-# Cross-platform build/test/run. Windows adds a .exe suffix and runs tests with
-# a project-local temp dir, because some Windows app-control policies block
-# executing freshly built test binaries out of %TEMP%.
+# Cross-platform build/test/run. On Windows run it from Git Bash (POSIX shell);
+# the binary gets a .exe suffix.
 ifeq ($(OS),Windows_NT)
 	EXE := .exe
 else
@@ -8,25 +7,29 @@ else
 endif
 
 BIN := dist/bwsshd$(EXE)
-GOTMP := $(CURDIR)/dist/.gotmp
 PREFIX := $(HOME)/.local
 UNITDIR := $(HOME)/.config/systemd/user
 
-.PHONY: build test run clean install uninstall
+.PHONY: build test lint run clean install uninstall
 
 build:
-	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o $(BIN) .
+	cargo build --release --locked
+	@mkdir -p dist
+	cp target/release/bwsshd$(EXE) $(BIN)
 
 test:
-	@mkdir -p "$(GOTMP)"
-	GOTMPDIR="$(GOTMP)" go test ./...
+	cargo test --locked
+
+lint:
+	cargo fmt --check
+	cargo clippy --all-targets --locked -- -D warnings
 
 run: build
 	./$(BIN)
 
 clean:
+	cargo clean
 	rm -f $(BIN)
-	rm -rf $(GOTMP)
 
 # install / uninstall are Linux-only: they wire up the systemd --user service.
 install: build

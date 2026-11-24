@@ -1,8 +1,9 @@
 name: Release
 
 # release-please watches conventional-commit history on main, maintains a
-# "release" PR that bumps the version and CHANGELOG.md, and on merge tags the
-# release. When a release is created, goreleaser builds and uploads the binaries.
+# "release" PR that bumps Cargo.toml and CHANGELOG.md, and on merge tags the
+# release. When a release is created, the build matrix compiles every target
+# and uploads the archives, then a last job publishes checksums.txt.
 on:
   push:
     branches: [main]
@@ -16,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: rp
@@ -23,19 +26,69 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  goreleaser:
+  build:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux binaries are static (musl), so they run on any distro.
+          - { os: linux, arch: amd64, target: x86_64-unknown-linux-musl, runner: ubuntu-latest }
+          - { os: linux, arch: arm64, target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm }
+          - { os: darwin, arch: amd64, target: x86_64-apple-darwin, runner: macos-latest }
+          - { os: darwin, arch: arm64, target: aarch64-apple-darwin, runner: macos-latest }
+          - { os: windows, arch: amd64, target: x86_64-pc-windows-msvc, runner: windows-latest }
+          - { os: windows, arch: arm64, target: aarch64-pc-windows-msvc, runner: windows-latest }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+      NAME: bwsshd_${{ needs.release-please.outputs.version }}_${{ matrix.os }}_${{ matrix.arch }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: "1.26"
-      - uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
-        with:
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }} --no-self-update
+          rustup default stable
+      - name: Install musl tools
+        if: matrix.os == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      # Same layout as the Go releases: binary, Makefile + systemd unit
+      # (Linux helpers), Windows install scripts, README and LICENSE, flat at
+      # the archive root. Windows users get a .zip, everyone else a tarball.
+      - name: Package
+        run: |
+          ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
+          mkdir -p "pkg/$NAME"
+          cp "target/${{ matrix.target }}/release/bwsshd$ext" "pkg/$NAME/"
+          cp packaging/Makefile systemd/bwsshd.service packaging/windows/*.ps1 README.md LICENSE "pkg/$NAME/"
+          cd "pkg/$NAME"
+          if [ "${{ matrix.os }}" = windows ]; then
+            7z a -tzip "../../$NAME.zip" * > /dev/null
+            echo "ASSET=$NAME.zip" >> "$GITHUB_ENV"
+          else
+            tar -czf "../../$NAME.tar.gz" *
+            echo "ASSET=$NAME.tar.gz" >> "$GITHUB_ENV"
+          fi
+      - name: Upload
+        run: gh release upload "$TAG" "$ASSET" --clobber
+
+  checksums:
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - run: |
+          mkdir assets && cd assets
+          gh release download "$TAG" --pattern 'bwsshd_*'
+          sha256sum bwsshd_* > checksums.txt
+          gh release upload "$TAG" checksums.txt --clobber
