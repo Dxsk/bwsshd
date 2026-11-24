@@ -75,7 +75,7 @@ where
     .map_err(|e| format!("tray menu: {e}"))?;
     let icon = tray_icon(false)?;
 
-    let mut wb = WindowBuilder::new()
+    let wb = WindowBuilder::new()
         .with_title("bwsshd")
         .with_inner_size(LogicalSize::new(PANEL_W, PANEL_H))
         .with_resizable(false)
@@ -83,10 +83,10 @@ where
         .with_always_on_top(true)
         .with_visible(false);
     #[cfg(windows)]
-    {
+    let wb = {
         use tao::platform::windows::WindowBuilderExtWindows;
-        wb = wb.with_skip_taskbar(true);
-    }
+        wb.with_skip_taskbar(true)
+    };
     let window = wb
         .build(&event_loop)
         .map_err(|e| format!("tray panel: {e}"))?;
