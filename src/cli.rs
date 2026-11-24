@@ -11,7 +11,7 @@ use clap::Parser;
 use crate::config::{create_private_dir, ensure_include};
 use crate::platform::check_not_root;
 use crate::sync::{STATE_ABSENT, candidate_socks, sync};
-use crate::tray::{self, Status};
+use crate::tray::{self, Control, Status};
 
 /// Keep your ssh_config in sync with the SSH keys stored in your Bitwarden vault.
 #[derive(Debug, Parser)]
@@ -155,52 +155,85 @@ fn run_with(cli: Cli) -> Result<(), String> {
     );
     let interval = cli.interval;
     if cli.tray {
-        return tray::run(out.clone(), move |resync, notify| {
-            watch(&candidates, &out, &keydir, interval, &resync, &*notify)
+        return tray::run(out.clone(), interval, move |control, notify| {
+            watch(&candidates, &out, &keydir, interval, &control, &*notify)
         });
     }
-    // Never sent: keeps the resync channel open so it only acts as a timer.
-    let (_keep, resync) = mpsc::channel();
-    watch(&candidates, &out, &keydir, interval, &resync, &|_| {});
+    // Never sent: keeps the control channel open so it only acts as a timer.
+    let (_keep, control) = mpsc::channel();
+    watch(&candidates, &out, &keydir, interval, &control, &|_| {});
     Ok(())
 }
 
-/// The watch loop. A message on `resync` forgets the last state, so the next
-/// tick rewrites the config even if nothing changed.
+/// The watch loop. A resync forgets the last state, so the config is
+/// rewritten even if nothing changed; it also runs while paused. Resuming
+/// resyncs right away.
 fn watch(
     candidates: &[String],
     out: &Path,
     keydir: &Path,
-    interval: Duration,
-    resync: &Receiver<()>,
+    mut interval: Duration,
+    control: &Receiver<Control>,
     notify: &dyn Fn(Status),
 ) {
     let mut last = String::new();
     let mut synced = None;
+    let mut paused = false;
+    let mut force = false;
     loop {
-        match sync(candidates, out, keydir, &last) {
-            (state, Ok(())) => {
-                if state == STATE_ABSENT {
-                    notify(Status::Absent(synced));
-                } else {
-                    let now = Instant::now();
-                    synced = Some(now);
-                    notify(Status::Synced(now));
-                }
-                last = state;
-            }
-            (_, Err(e)) => {
-                info!("{e}");
-                notify(Status::Failed(e));
-            }
+        if !paused || force {
+            // A forced resync while paused keeps showing "paused".
+            let quiet: &dyn Fn(Status) = &|_| {};
+            let sink = if paused { quiet } else { notify };
+            tick(candidates, out, keydir, &mut last, &mut synced, sink);
         }
-        match resync.recv_timeout(interval) {
-            Ok(()) => {
+        if paused {
+            notify(Status::Paused(synced));
+        }
+        force = false;
+        match control.recv_timeout(interval) {
+            Ok(Control::Resync) => {
                 info!("resync requested");
+                last.clear();
+                force = true;
+            }
+            Ok(Control::Interval(d)) => {
+                info!("syncing every {}", humantime::format_duration(d));
+                interval = d;
+            }
+            Ok(Control::Pause(p)) => {
+                info!("auto sync {}", if p { "paused" } else { "resumed" });
+                paused = p;
                 last.clear();
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
+        }
+    }
+}
+
+fn tick(
+    candidates: &[String],
+    out: &Path,
+    keydir: &Path,
+    last: &mut String,
+    synced: &mut Option<Instant>,
+    notify: &dyn Fn(Status),
+) {
+    match sync(candidates, out, keydir, last) {
+        (state, Ok(())) => {
+            if state == STATE_ABSENT {
+                notify(Status::Absent(*synced));
+            } else {
+                let now = Instant::now();
+                *synced = Some(now);
+                notify(Status::Synced(now));
+            }
+            *last = state;
+        }
+        (_, Err(e)) => {
+            info!("{e}");
+            notify(Status::Failed(e));
         }
     }
 }

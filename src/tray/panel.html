@@ -41,6 +41,24 @@ button:hover { border-color: #33405f; color: var(--text); }
 button.primary { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
 button.primary:hover { background: #6ff0d8; color: var(--on-signal); }
 button.danger:hover { border-color: var(--reject); color: var(--reject); }
+.paused .dot { background: var(--faint); box-shadow: none; }
+.paused .eyebrow { color: var(--faint); }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); cursor: pointer; }
+.toggle strong { display: block; font-weight: 600; font-size: 14px; }
+.toggle small { color: var(--faint); font-size: 12px; }
+.switch { position: relative; flex: none; width: 40px; height: 22px; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--soft); transition: transform .15s, background .15s; }
+.switch input:checked + span { background: var(--signal); }
+.switch input:checked + span::after { transform: translateX(18px); background: var(--on-signal); }
+.switch input:focus-visible + span { outline: 2px solid var(--signal); outline-offset: 2px; }
+.every { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.every > span { color: var(--faint); font-size: 13px; }
+.seg { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+.seg button { flex: none; height: 26px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 12px "JetBrains Mono", monospace; }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--surface); color: var(--signal); box-shadow: inset 0 0 0 1px var(--line); }
 </style>
 </head>
 <body>
@@ -60,6 +78,16 @@ button.danger:hover { border-color: var(--reject); color: var(--reject); }
       <div class="eyebrow" id="eyebrow">Starting</div>
       <div id="label">Waiting for the first sync</div>
       <div id="detail"></div>
+    </div>
+  </div>
+  <label class="toggle">
+    <span><strong>Auto sync</strong><small id="auto-hint">Follows your vault every few seconds</small></span>
+    <span class="switch"><input type="checkbox" id="auto" role="switch" checked onchange="ipc.postMessage(this.checked ? 'resume' : 'pause')"><span></span></span>
+  </label>
+  <div class="every">
+    <span>Sync every</span>
+    <div class="seg" id="every">
+      <button data-s="5">5s</button><button data-s="10">10s</button><button data-s="30">30s</button><button data-s="60">1m</button><button data-s="300">5m</button>
     </div>
   </div>
   <dl>
@@ -82,6 +110,18 @@ button.danger:hover { border-color: var(--reject); color: var(--reject); }
 </footer>
 <script>
 let synced = null;
+let interval = {{EVERY}};
+const fmt = (s) => (s % 60 === 0 ? s / 60 + "m" : s + "s");
+function showEvery() {
+  document.querySelectorAll("#every button").forEach((b) => b.classList.toggle("on", +b.dataset.s === interval));
+  if (document.getElementById("auto").checked)
+    document.getElementById("auto-hint").textContent = "Follows your vault every " + fmt(interval);
+}
+document.querySelectorAll("#every button").forEach((b) => b.addEventListener("click", () => {
+  interval = +b.dataset.s;
+  ipc.postMessage("every:" + interval);
+  showEvery();
+}));
 function ago(ms) {
   const s = Math.floor(ms / 1000);
   if (s < 5) return "just now";
@@ -92,19 +132,24 @@ function ago(ms) {
 function render() {
   document.getElementById("detail").textContent = synced === null ? "No sync yet" : "Last sync " + ago(Date.now() - synced);
 }
-// Called from Rust: kind is "ok", "absent" or "failed"; msAgo is the age of
-// the last sync, or null before the first one.
+// Called from Rust: kind is "ok", "absent", "failed" or "paused"; msAgo is
+// the age of the last sync, or null before the first one.
 window.update = (kind, error, msAgo) => {
   synced = msAgo === null ? null : Date.now() - msAgo;
-  document.getElementById("status").className = "status " + (kind === "ok" ? "ok" : "warn");
-  document.getElementById("eyebrow").textContent = { ok: "In sync", absent: "Agent unreachable", failed: "Sync failed" }[kind];
+  document.getElementById("status").className = "status " + ({ ok: "ok", paused: "paused" }[kind] || "warn");
+  document.getElementById("eyebrow").textContent = { ok: "In sync", absent: "Agent unreachable", failed: "Sync failed", paused: "Paused" }[kind];
   document.getElementById("label").textContent = {
     ok: "Config matches your vault",
     absent: "Bitwarden is closed or locked",
     failed: error,
+    paused: "Config is frozen as it is",
   }[kind];
+  document.getElementById("auto").checked = kind !== "paused";
+  if (kind === "paused") document.getElementById("auto-hint").textContent = "Off: Resync now still runs once";
+  showEvery();
   render();
 };
+showEvery();
 setInterval(render, 1000);
 document.addEventListener("keydown", (e) => e.key === "Escape" && ipc.postMessage("hide"));
 document.addEventListener("contextmenu", (e) => e.preventDefault());

@@ -18,8 +18,8 @@ use tray_icon::{Icon, MouseButton, MouseButtonState, Rect, TrayIconBuilder, Tray
 use wry::WebViewBuilder;
 
 use super::{
-    COMMIT, COMMIT_DATE, Notify, Status, VERSION, WAITING, icon_rgba, label, open_config,
-    version_line,
+    COMMIT, COMMIT_DATE, Control, Notify, PRESETS, Status, VERSION, WAITING, icon_rgba, label,
+    open_config, version_line,
 };
 
 enum UserEvent {
@@ -30,11 +30,11 @@ enum UserEvent {
 }
 
 const PANEL_W: f64 = 360.0;
-const PANEL_H: f64 = 380.0;
+const PANEL_H: f64 = 510.0;
 
-pub fn run<F>(out: PathBuf, watch: F) -> Result<(), String>
+pub fn run<F>(out: PathBuf, interval: Duration, watch: F) -> Result<(), String>
 where
-    F: FnOnce(Receiver<()>, Notify) + Send + 'static,
+    F: FnOnce(Receiver<Control>, Notify) + Send + 'static,
 {
     #[allow(unused_mut)]
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
@@ -56,6 +56,7 @@ where
 
     let status = MenuItem::new(WAITING, false, None);
     let resync = MenuItem::new("Resync now", true, None);
+    let pause = MenuItem::new("Pause auto sync", true, None);
     let open = MenuItem::new("Open generated config", true, None);
     let quit = MenuItem::new("Quit bwsshd", true, None);
     let menu = Menu::with_items(&[
@@ -63,11 +64,12 @@ where
         &status,
         &PredefinedMenuItem::separator(),
         &resync,
+        &pause,
         &open,
         &quit,
     ])
     .map_err(|e| format!("tray menu: {e}"))?;
-    let icon = Icon::from_rgba(icon_rgba(32), 32, 32).map_err(|e| format!("tray icon: {e}"))?;
+    let icon = tray_icon(false)?;
 
     let mut wb = WindowBuilder::new()
         .with_title("bwsshd")
@@ -86,7 +88,7 @@ where
         .map_err(|e| format!("tray panel: {e}"))?;
     let proxy = event_loop.create_proxy();
     let webview = WebViewBuilder::new()
-        .with_html(panel_html(&out))
+        .with_html(panel_html(&out, interval))
         .with_background_color((10, 13, 20, 255))
         .with_ipc_handler(move |req| {
             let _ = proxy.send_event(UserEvent::Panel(req.body().clone()));
@@ -117,6 +119,7 @@ where
     // Clicking the icon while the panel is open first blurs it (hiding it);
     // the click that follows must not reopen it.
     let mut hidden_at = Instant::now();
+    let mut paused = false;
     #[cfg(windows)]
     let mut armed = false;
     event_loop.run(move |event, _, flow| {
@@ -138,6 +141,18 @@ where
                 status.set_text(&text);
                 if let Some(t) = &tray {
                     let _ = t.set_tooltip(Some(format!("bwsshd: {text}")));
+                }
+                let now_paused = matches!(s, Status::Paused(_));
+                if now_paused != paused {
+                    paused = now_paused;
+                    pause.set_text(if paused {
+                        "Resume auto sync"
+                    } else {
+                        "Pause auto sync"
+                    });
+                    if let (Some(t), Ok(i)) = (&tray, tray_icon(paused)) {
+                        let _ = t.set_icon(Some(i));
+                    }
                 }
                 last_script = panel_script(&s);
                 let _ = webview.evaluate_script(&last_script);
@@ -184,7 +199,9 @@ where
             }
             Event::UserEvent(UserEvent::Menu(e)) => {
                 if e.id == *resync.id() {
-                    let _ = tx.send(());
+                    let _ = tx.send(Control::Resync);
+                } else if e.id == *pause.id() {
+                    let _ = tx.send(Control::Pause(!paused));
                 } else if e.id == *open.id() {
                     open_config(&out);
                 } else if e.id == *quit.id() {
@@ -193,7 +210,13 @@ where
             }
             Event::UserEvent(UserEvent::Panel(msg)) => match msg.as_str() {
                 "resync" => {
-                    let _ = tx.send(());
+                    let _ = tx.send(Control::Resync);
+                }
+                "pause" => {
+                    let _ = tx.send(Control::Pause(true));
+                }
+                "resume" => {
+                    let _ = tx.send(Control::Pause(false));
                 }
                 "open" => {
                     window.set_visible(false);
@@ -201,7 +224,16 @@ where
                 }
                 "hide" => window.set_visible(false),
                 "quit" => quit_now(),
-                _ => {}
+                // The page is local, but it is still input: only presets pass.
+                m => {
+                    if let Some(s) = m
+                        .strip_prefix("every:")
+                        .and_then(|s| s.parse().ok())
+                        .filter(|s| PRESETS.contains(s))
+                    {
+                        let _ = tx.send(Control::Interval(Duration::from_secs(s)));
+                    }
+                }
             },
             _ => {}
         }
@@ -214,6 +246,10 @@ fn is_foreground(window: &Window) -> bool {
     // SAFETY: GetForegroundWindow has no preconditions.
     let fg = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
     fg as isize == window.hwnd()
+}
+
+fn tray_icon(paused: bool) -> Result<Icon, String> {
+    Icon::from_rgba(icon_rgba(32, paused), 32, 32).map_err(|e| format!("tray icon: {e}"))
 }
 
 fn quit_now() -> ! {
@@ -253,7 +289,7 @@ fn place(window: &Window, icon: Rect) {
     window.set_outer_position(PhysicalPosition::new(x, y));
 }
 
-fn panel_html(out: &std::path::Path) -> String {
+fn panel_html(out: &std::path::Path, interval: Duration) -> String {
     let b64 = |bytes: &[u8]| STANDARD.encode(bytes);
     let or_na = |s: &str| if s.is_empty() { "n/a" } else { s }.to_string();
     include_str!("panel.html")
@@ -269,6 +305,7 @@ fn panel_html(out: &std::path::Path) -> String {
             "{{MONO}}",
             &b64(include_bytes!("../../assets/fonts/jetbrains-mono.woff2")),
         )
+        .replace("{{EVERY}}", &interval.as_secs().to_string())
         .replace("{{VERSION}}", VERSION)
         .replace("{{COMMIT}}", &or_na(COMMIT))
         .replace("{{DATE}}", &or_na(COMMIT_DATE))
@@ -290,6 +327,7 @@ fn panel_script(s: &Status) -> String {
         Status::Synced(t) => ("ok", "", ms(t)),
         Status::Absent(t) => ("absent", "", t.as_ref().map_or("null".into(), ms)),
         Status::Failed(e) => ("failed", e.as_str(), "null".into()),
+        Status::Paused(t) => ("paused", "", t.as_ref().map_or("null".into(), ms)),
     };
     format!("window.update && update({kind:?}, {error:?}, {ago})")
 }
