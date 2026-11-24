@@ -10,6 +10,7 @@ use clap::Parser;
 
 use crate::config::{create_private_dir, ensure_include};
 use crate::platform::check_not_root;
+use crate::settings::{self, Settings};
 use crate::sync::{STATE_ABSENT, candidate_socks, sync};
 use crate::tray::{self, Control, Status};
 
@@ -149,38 +150,78 @@ fn run_with(cli: Cli) -> Result<(), String> {
         return sync(&candidates, &out, &keydir, "").1;
     }
 
+    if cli.tray {
+        let path = settings::path(&home);
+        let mut saved = Settings::load(&path);
+        // A choice made in the tray is newer than the command line.
+        let interval = saved.interval.unwrap_or(cli.interval);
+        info!(
+            "watching for the Bitwarden agent every {}{}",
+            humantime::format_duration(interval),
+            if saved.paused {
+                " (auto sync paused)"
+            } else {
+                ""
+            }
+        );
+        return tray::run(out.clone(), interval, move |control, notify| {
+            let mut save = |s: &Settings| {
+                if let Err(e) = s.save(&path) {
+                    info!("{e}");
+                }
+            };
+            watch(
+                &candidates,
+                &out,
+                &keydir,
+                interval,
+                &mut saved,
+                &control,
+                &*notify,
+                &mut save,
+            )
+        });
+    }
     info!(
         "watching for the Bitwarden agent every {}",
         humantime::format_duration(cli.interval)
     );
-    let interval = cli.interval;
-    if cli.tray {
-        return tray::run(out.clone(), interval, move |control, notify| {
-            watch(&candidates, &out, &keydir, interval, &control, &*notify)
-        });
-    }
+    let mut state = Settings::default();
     // Never sent: keeps the control channel open so it only acts as a timer.
     let (_keep, control) = mpsc::channel();
-    watch(&candidates, &out, &keydir, interval, &control, &|_| {});
+    watch(
+        &candidates,
+        &out,
+        &keydir,
+        cli.interval,
+        &mut state,
+        &control,
+        &|_| {},
+        &mut |_| {},
+    );
     Ok(())
 }
 
 /// The watch loop. A resync forgets the last state, so the config is
 /// rewritten even if nothing changed; it also runs while paused. Resuming
-/// resyncs right away.
+/// resyncs right away. Pause and interval changes go through `save`.
+#[allow(clippy::too_many_arguments)]
 fn watch(
     candidates: &[String],
     out: &Path,
     keydir: &Path,
-    mut interval: Duration,
+    default_interval: Duration,
+    state: &mut Settings,
     control: &Receiver<Control>,
     notify: &dyn Fn(Status),
+    save: &mut dyn FnMut(&Settings),
 ) {
     let mut last = String::new();
     let mut synced = None;
-    let mut paused = false;
     let mut force = false;
     loop {
+        let paused = state.paused;
+        let interval = state.interval.unwrap_or(default_interval);
         if !paused || force {
             // A forced resync while paused keeps showing "paused".
             let quiet: &dyn Fn(Status) = &|_| {};
@@ -199,12 +240,14 @@ fn watch(
             }
             Ok(Control::Interval(d)) => {
                 info!("syncing every {}", humantime::format_duration(d));
-                interval = d;
+                state.interval = Some(d);
+                save(state);
             }
             Ok(Control::Pause(p)) => {
                 info!("auto sync {}", if p { "paused" } else { "resumed" });
-                paused = p;
+                state.paused = p;
                 last.clear();
+                save(state);
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
