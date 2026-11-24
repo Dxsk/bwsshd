@@ -1,7 +1,8 @@
 //! Windows and macOS: tray-icon on a tao event loop, which must own the main
 //! thread on macOS. The watch loop runs on a worker thread and wakes the event
 //! loop through its proxy. Left click opens a small webview panel styled like
-//! the website; right click opens the menu.
+//! the website; right click opens the menu. The webview only exists while the
+//! panel is open: WebView2 keeps ~150 MB of helper processes alive otherwise.
 
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
@@ -15,7 +16,7 @@ use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::{Window, WindowBuilder};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, Rect, TrayIconBuilder, TrayIconEvent};
-use wry::WebViewBuilder;
+use wry::{WebView, WebViewBuilder};
 
 use super::{
     COMMIT, COMMIT_DATE, Control, Notify, PRESETS, Status, Update, VERSION, WAITING, icon_rgba,
@@ -89,15 +90,9 @@ where
     let window = wb
         .build(&event_loop)
         .map_err(|e| format!("tray panel: {e}"))?;
-    let proxy = event_loop.create_proxy();
-    let webview = WebViewBuilder::new()
-        .with_html(panel_html(&out, interval))
-        .with_background_color((10, 13, 20, 255))
-        .with_ipc_handler(move |req| {
-            let _ = proxy.send_event(UserEvent::Panel(req.body().clone()));
-        })
-        .build(&window)
-        .map_err(|e| format!("tray panel: {e}"))?;
+    let ipc = event_loop.create_proxy();
+    let mut webview: Option<WebView> = None;
+    let mut interval = interval;
 
     let (tx, rx) = mpsc::channel();
     let proxy = event_loop.create_proxy();
@@ -163,7 +158,9 @@ where
                     }
                 }
                 last_script = panel_script(&s);
-                let _ = webview.evaluate_script(&last_script);
+                if let Some(w) = &webview {
+                    let _ = w.evaluate_script(&last_script);
+                }
             }
             Event::UserEvent(UserEvent::Tray(TrayIconEvent::Click {
                 rect,
@@ -175,8 +172,27 @@ where
                     window.set_visible(false);
                 } else if hidden_at.elapsed() > Duration::from_millis(300) {
                     place(&window, rect);
-                    let _ = webview.evaluate_script(&last_script);
-                    let _ = webview.evaluate_script(&update_script);
+                    // Scripts run before the page loads are lost, so the
+                    // current state is baked into the page instead.
+                    let html = panel_html(&out, interval).replace(
+                        "</body>",
+                        &format!("<script>{last_script};{update_script}</script></body>"),
+                    );
+                    let ipc = ipc.clone();
+                    match WebViewBuilder::new()
+                        .with_html(html)
+                        .with_background_color((10, 13, 20, 255))
+                        .with_ipc_handler(move |req| {
+                            let _ = ipc.send_event(UserEvent::Panel(req.body().clone()));
+                        })
+                        .build(&window)
+                    {
+                        Ok(w) => webview = Some(w),
+                        Err(e) => {
+                            info!("tray panel: {e}");
+                            return;
+                        }
+                    }
                     window.set_visible(true);
                     window.set_focus();
                     #[cfg(windows)]
@@ -197,6 +213,9 @@ where
                     hidden_at = Instant::now();
                 }
                 *flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(150));
+            }
+            Event::MainEventsCleared if !window.is_visible() && webview.is_some() => {
+                webview = None;
             }
             #[cfg(not(windows))]
             Event::WindowEvent {
@@ -228,7 +247,9 @@ where
                     }
                     None => "window.showUpdate && showUpdate(null, false)".into(),
                 };
-                let _ = webview.evaluate_script(&update_script);
+                if let Some(w) = &webview {
+                    let _ = w.evaluate_script(&update_script);
+                }
             }
             Event::UserEvent(UserEvent::Panel(msg)) => match msg.as_str() {
                 "resync" => {
@@ -257,7 +278,8 @@ where
                         .and_then(|s| s.parse().ok())
                         .filter(|s| PRESETS.contains(s))
                     {
-                        let _ = tx.send(Control::Interval(Duration::from_secs(s)));
+                        interval = Duration::from_secs(s);
+                        let _ = tx.send(Control::Interval(interval));
                     }
                 }
             },
@@ -356,4 +378,32 @@ fn panel_script(s: &Status) -> String {
         Status::Paused(t) => ("paused", "", t.as_ref().map_or("null".into(), ms)),
     };
     format!("window.update && update({kind:?}, {error:?}, {ago})")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panel_script_escapes_errors_as_js() {
+        // Windows paths and quotes in an error must not break out of the string.
+        let s = panel_script(&Status::Failed(r#"open "C:\Users\x": denied"#.into()));
+        assert_eq!(
+            s,
+            r#"window.update && update("failed", "open \"C:\\Users\\x\": denied", null)"#
+        );
+        let s = panel_script(&Status::Paused(None));
+        assert_eq!(s, r#"window.update && update("paused", "", null)"#);
+    }
+
+    #[test]
+    fn panel_html_fills_every_placeholder() {
+        let html = panel_html(
+            std::path::Path::new(r#"C:\a&b\<c>"#),
+            Duration::from_secs(30),
+        );
+        assert!(!html.contains("{{"), "unfilled placeholder");
+        assert!(html.contains("let interval = 30;"));
+        assert!(html.contains(r"C:\a&amp;b\&lt;c&gt;"));
+    }
 }
