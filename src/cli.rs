@@ -3,13 +3,15 @@
 use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::time::{Duration, Instant};
 
 use clap::Parser;
 
 use crate::config::{create_private_dir, ensure_include};
 use crate::platform::check_not_root;
-use crate::sync::{candidate_socks, sync};
+use crate::sync::{STATE_ABSENT, candidate_socks, sync};
+use crate::tray::{self, Status};
 
 /// Keep your ssh_config in sync with the SSH keys stored in your Bitwarden vault.
 #[derive(Debug, Parser)]
@@ -34,6 +36,11 @@ pub struct Cli {
     /// Loop instead of a single run
     #[arg(long)]
     pub watch: bool,
+
+    /// Show an icon in the notification area (implies --watch): last sync,
+    /// resync now, quit
+    #[arg(long)]
+    pub tray: bool,
 
     /// Poll interval in watch mode (e.g. 10s, 1m)
     #[arg(long, value_name = "DURATION", default_value = "10s", value_parser = parse_interval)]
@@ -138,7 +145,7 @@ fn run_with(cli: Cli) -> Result<(), String> {
 
     let candidates = candidate_socks(cli.sock.as_deref(), &home);
 
-    if !cli.watch {
+    if !cli.watch && !cli.tray {
         return sync(&candidates, &out, &keydir, "").1;
     }
 
@@ -146,13 +153,55 @@ fn run_with(cli: Cli) -> Result<(), String> {
         "watching for the Bitwarden agent every {}",
         humantime::format_duration(cli.interval)
     );
+    let interval = cli.interval;
+    if cli.tray {
+        return tray::run(move |resync, notify| {
+            watch(&candidates, &out, &keydir, interval, &resync, &*notify)
+        });
+    }
+    // Never sent: keeps the resync channel open so it only acts as a timer.
+    let (_keep, resync) = mpsc::channel();
+    watch(&candidates, &out, &keydir, interval, &resync, &|_| {});
+    Ok(())
+}
+
+/// The watch loop. A message on `resync` forgets the last state, so the next
+/// tick rewrites the config even if nothing changed.
+fn watch(
+    candidates: &[String],
+    out: &Path,
+    keydir: &Path,
+    interval: Duration,
+    resync: &Receiver<()>,
+    notify: &dyn Fn(Status),
+) {
     let mut last = String::new();
+    let mut synced = None;
     loop {
-        match sync(&candidates, &out, &keydir, &last) {
-            (state, Ok(())) => last = state,
-            (_, Err(e)) => info!("{e}"),
+        match sync(candidates, out, keydir, &last) {
+            (state, Ok(())) => {
+                if state == STATE_ABSENT {
+                    notify(Status::Absent(synced));
+                } else {
+                    let now = Instant::now();
+                    synced = Some(now);
+                    notify(Status::Synced(now));
+                }
+                last = state;
+            }
+            (_, Err(e)) => {
+                info!("{e}");
+                notify(Status::Failed(e));
+            }
         }
-        std::thread::sleep(cli.interval);
+        match resync.recv_timeout(interval) {
+            Ok(()) => {
+                info!("resync requested");
+                last.clear();
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
     }
 }
 

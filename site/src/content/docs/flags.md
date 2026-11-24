@@ -18,6 +18,7 @@ bwsshd --watch --interval 30s
 | `--keydir` | `~/.ssh/bwsshd-keys` | Where public keys are written. |
 | `--ssh-config` | `~/.ssh/config` | Config that receives the `Include` line. |
 | `--watch` | off | Keep running and regenerate on every key change. |
+| `--tray` | off | Show a tray icon: last sync, *Resync now*, *Quit*. Implies `--watch`. |
 | `--interval` | `10s` | Poll interval in watch mode (`30s`, `1m`, ...). |
 | `--logfile` | stderr | Append logs to a file, for the hidden Windows task. |
 | `--version` | | Print the version and exit. |

@@ -219,6 +219,17 @@ Run as a background daemon that regenerates on every key change:
 bwsshd --watch
 ```
 
+Add an icon to the notification area (Windows), the menu bar (macOS) or the
+system tray (Linux). Right-click it to see when bwsshd last read the agent,
+force a resync, or quit:
+
+```sh
+bwsshd --watch --tray
+```
+
+On Linux the icon uses StatusNotifierItem: KDE shows it out of the box, GNOME
+needs the AppIndicator extension.
+
 **Run at login (systemd user service)**
 
 ```sh
@@ -226,7 +237,9 @@ make install
 ```
 
 This builds a stripped static binary into `~/.local/bin`, installs the user
-service, and enables it.
+service, and enables it. The service runs headless; on a desktop, add the icon
+with `systemctl --user edit bwsshd` and an `ExecStart=` override ending in
+`--watch --tray`.
 
 Follow the logs with:
 
@@ -246,7 +259,7 @@ Task at logon**, which the bundled script sets up for you (no admin needed):
 powershell -ExecutionPolicy Bypass -File .\packaging\windows\install.ps1
 ```
 
-It registers a task named `bwsshd` that runs `bwsshd --watch` at logon, in your
+It registers a task named `bwsshd` that runs `bwsshd --watch --tray` at logon, in your
 session, **hidden** (no console window), and restarts it if it crashes. Logs go
 to `%LOCALAPPDATA%\bwsshd\bwsshd.log`:
 
@@ -276,11 +289,13 @@ path and your home directory:
     <array>
         <string>/usr/local/bin/bwsshd</string>
         <string>--watch</string>
+        <string>--tray</string>
         <string>--logfile</string>
         <string>/Users/you/Library/Logs/bwsshd.log</string>
     </array>
     <key>RunAtLoad</key><true/>
-    <key>KeepAlive</key><true/>
+    <!-- Restart on crash, but not after Quit from the menu bar icon. -->
+    <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
 </dict>
 </plist>
 ```
@@ -311,6 +326,7 @@ generated config and removes its key directory until the app comes back.
 | `--keydir` | `~/.ssh/bwsshd-keys` | Where public keys are written |
 | `--ssh-config` | `~/.ssh/config` | ssh_config to add the Include line to |
 | `--watch` | off | Loop instead of a single run |
+| `--tray` | off | Show a tray icon with the last sync, *Resync now* and *Quit* (implies `--watch`) |
 | `--interval` | `10s` | Poll interval in watch mode (`30s`, `1m`, ...) |
 | `--logfile` | stderr | Append logs to this file (used by the Windows scheduled task, which has no console) |
 | `--version` | | Print the version and exit |

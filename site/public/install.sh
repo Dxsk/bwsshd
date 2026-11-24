@@ -123,11 +123,13 @@ else
     <array>
         <string>$BIN_DIR/bwsshd</string>
         <string>--watch</string>
+        <string>--tray</string>
         <string>--logfile</string>
         <string>$log</string>
     </array>
     <key>RunAtLoad</key><true/>
-    <key>KeepAlive</key><true/>
+    <!-- Restart on crash, but not after Quit from the menu bar icon. -->
+    <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
 </dict>
 </plist>
 EOF
