@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/Dxsk/bwsshd/compare/v1.0.1...v1.1.0) (2026-11-24)
+
+
+### Features
+
+* add bwsshd install/uninstall and a Windows MSI ([d2418b2](https://github.com/Dxsk/bwsshd/commit/d2418b268047deee46b6a498d05a6569a69e99f0))
+* **tray:** link to the GitHub project from the menu and the panel ([93c6e20](https://github.com/Dxsk/bwsshd/commit/93c6e2067b910fcf702febce59cdef342f73b7e1))
+
+
+### Bug Fixes
+
+* **msi:** give the main component a fixed GUID ([025e2d4](https://github.com/Dxsk/bwsshd/commit/025e2d431f2842f576054b36719f2ca71842d0ad))
+* **tray:** open links again on Windows after freeing the console ([01f5f55](https://github.com/Dxsk/bwsshd/commit/01f5f551ea4fda14c887f8f048c67936c0409f5d))
+
 ## [1.0.1](https://github.com/Dxsk/bwsshd/compare/v1.0.0...v1.0.1) (2026-11-24)
 
 
